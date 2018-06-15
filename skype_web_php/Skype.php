@@ -44,13 +44,13 @@ class Skype
      * @param $password
      * @throws \Exception
      */
-    public function login($username, $password)
+    public function login($username, $password, $skypeToken)
     {
-        $this->transport->login($username, $password);
-        $this->transport->subscribeToResources();
-        $this->profile = $this->transport->loadProfile($username);
-        $this->contacts = $this->transport->loadContacts($username);
+        $this->transport->login($skypeToken);
+        $this->profile = $this->transport->loadFullProfile();
+        $this->contacts = $this->transport->loadContacts();
         $this->transport->createStatusEndpoint();
+        $this->transport->subscribeToResources();
         $this->transport->setStatus(self::STATUS_ONLINE);
     }
 
@@ -61,15 +61,44 @@ class Skype
     {
         $this->transport->logout();
     }
+	
+	public function updateProfile($data) {
+		$Result = $this->transport->updateProfile($data);
+		return $Result;
+	}
+	
+	public function updateAvatar($loginName, $filename) {
+		$Result = $this->transport->updateAvatar($loginName, $filename);
+		return $Result;
+	}
+	
+	public function getInvites() {
+		return $this->transport->getInvites();
+	}
+	
+	public function blockContact($mri) {
+		$Result = $this->transport->blockContact($mri);
+		return $Result;
+	}
+	
+	public function unblockContact($mri) {
+		$Result = $this->transport->unblockContact($mri);
+		return $Result;
+	}
+	
+	public function getBlockList() {
+		$Result = $this->transport->getBlockList();
+		return $Result;
+	}
 
     /**
-     * @param $username
+     * @param $mri
      * @return mixed
      */
-    public function getContact($username)
+    public function getContact($mri)
     {
-        $contact = array_filter($this->contacts, function ($current) use ($username) {
-            return $current->id == $username;
+        $contact = array_filter($this->contacts, function ($current) use ($mri) {
+            return $current->mri == $mri;
         });
 
         return reset($contact);

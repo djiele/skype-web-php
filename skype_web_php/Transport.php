@@ -33,12 +33,6 @@ class Transport {
         }
 
         static::$Endpoints = [
-            'login_get'    => new Endpoint('GET',
-                'https://login.skype.com/login?client_id=578134&redirect_uri=https%3A%2F%2Fweb.skype.com'),
-
-            'login_post'   => new Endpoint('POST',
-                'https://login.skype.com/login?client_id=578134&redirect_uri=https%3A%2F%2Fweb.skype.com'),
-
             'asm'          => new Endpoint('POST',
                 'https://api.asm.skype.com/v1/skypetokenauth'),
 
@@ -47,7 +41,7 @@ class Transport {
                 ->needSkypeToken(),
 
             'contacts'     => (new Endpoint('GET',
-                'https://contacts.skype.com/contacts/v1/users/%s/contacts'))
+                'https://contacts.skype.com/contacts/v2/users/self/contacts'))
                 ->needSkypeToken(),
 
             'send_message' => (new Endpoint('POST',
@@ -72,8 +66,10 @@ class Transport {
         $Stack->push(Middleware::mapResponse(function (ResponseInterface $Response) {
             $code = $Response->getStatusCode();
             if (($code >= 301 && $code <= 303) || $code == 307 || $code == 308) {
-                $location = $Response->getHeader('Location');
-                preg_match('/https?://([^-]*-)client-s/', $location, $matches);
+                $matches = array();
+				$tmp = $Response->getHeader('Location');
+				$location = array_pop($tmp);
+                preg_match('#https?://([^-]*-)client\-s#', $location, $matches);
                 if (array_key_exists(1, $matches)) {
                     $this->cloud = $matches[1];
                 }
@@ -160,46 +156,6 @@ class Transport {
     }
 
     /**
-     * Запрос для входа.
-     * @param string $username
-     * @param string $password
-     * @param null $captchaData Можем передать массив с решением капчи
-     * @return DOMDocument
-     */
-    private function postToLogin($username, $password, $captchaData=null) {
-        $Doc = $this->requestDOM('login_get');
-        $LoginForm = $Doc->getElementById('loginForm');
-        $inputs = $LoginForm->getElementsByTagName('input');
-        $formData = [];
-        /* @var $input \DOMElement */
-        foreach ($inputs as $input) {
-            $formData[$input->getAttribute('name')] = $input->getAttribute('value');
-        }
-        $now = time();
-        $formData['timezone_field'] = str_replace(':', '|', date('P', $now));
-        $formData['username'] = $username;
-        $formData['password'] = $password;
-        $formData['js_time'] = $now;
-        if ($captchaData) {
-            $formData['hip_solution'] = $captchaData['hip_solution'];
-            $formData['hip_token'] = $captchaData['hip_token'];
-            $formData['fid'] = $captchaData['fid'];
-            $formData['hip_type'] = 'visual';
-            $formData['captcha_provider'] = 'Hip';
-        } else {
-            unset($formData['hip_solution']);
-            unset($formData['hip_token']);
-            unset($formData['fid']);
-            unset($formData['hip_type']);
-            unset($formData['captcha_provider']);
-        }
-
-        return $this->requestDOM('login_post', [
-            'form_params' => $formData
-        ]);
-    }
-
-    /**
      * Выполняем запрос для входа, ловим из ответа skypeToken
      * Проверяем не спросили ли у нас капчу и не возникло ли другой ошибки
      * Если всё плохо, то бросим исключение, иначе вернём true
@@ -209,58 +165,22 @@ class Transport {
      * @return bool
      * @throws Exception
      */
-    public function login($username, $password, $captchaData=null) {
-        $Doc = $this->postToLogin($username, $password, $captchaData);
-        $XPath = new DOMXPath($Doc);
-        $Inputs = $XPath->query("//input[@name='skypetoken']");
-        if ($Inputs->length) {
-            $this->skypeToken = $Inputs->item(0)->attributes->getNamedItem('value')->nodeValue;
-            $this->request('asm', [
-                'form_params' => [
-                    'skypetoken' => $this->skypeToken,
-                ],
-            ]);
-            $this->request('endpoint', [
-                'headers' => [
-                    'Authentication' => "skypetoken=$this->skypeToken"
-                ],
-                'json' => [
-                    'skypetoken' => $this->skypeToken
-                ]
-            ]);
-            return true;
-        }
-
-        $CaptchaContainer = $Doc->getElementById("captchaContainer");
-        if ($CaptchaContainer) {
-            // Вот здесь определяем данные капчи
-            $Scripts = $CaptchaContainer->getElementsByTagName('script');
-            if ($Scripts->length > 0) {
-                $script = "";
-                foreach ($Scripts as $item) {
-                    $script .= $item->textContent;
-                }
-                preg_match_all("/skypeHipUrl = \"(.*)\"/", $script, $matches);
-                $url = $matches[1][0];
-                $rawjs = $this->client->get($url)->getBody();
-                $captchaData = $this->processCaptcha($rawjs);
-                // Если решение получено, пытаемся ещё раз залогиниться, но уже с решением капчи
-                if ($this->login($username, $password, $captchaData)) {
-                    return true;
-                } else {
-                    throw new Exception("Captcha error: $url");
-                }
-            }
-        }
-        $Errors = $XPath->query('//*[contains(concat(" ", normalize-space(@class), " "), " message_error ")]');
-        if ($Errors->length) {
-            $errorMsg = '';
-            foreach ($Errors as $Error) {
-                $errorMsg = $errorMsg . PHP_EOL . $Error->textContent;
-            }
-            throw new Exception($errorMsg);
-        }
-        throw new Exception("Unable to find skype token");
+    public function login($skypeToken) {
+		$this->skypeToken = $skypeToken;
+		$this->request('asm', [
+			'form_params' => [
+				'skypetoken' => $this->skypeToken,
+			],
+		]);
+		$this->request('endpoint', [
+			'headers' => [
+				'Authentication' => "skypetoken=$this->skypeToken"
+			],
+			'json' => [
+				'skypetoken' => $this->skypeToken
+			]
+		]);
+		return true;
     }
 
     /**
@@ -271,28 +191,6 @@ class Transport {
         $this->request('logout');
         return true;
     }
-
-    /**
-     * Заглушка для ввода капчи. Сейчас просто выводит в консоли урл картинки
-     * и ждёт ввода с клавиатуры решения
-     * @param $script
-     * @return array
-     */
-    private function processCaptcha($script) {
-        preg_match_all("/imageurl:'([^']*)'/", $script, $matches);
-        $imgurl = $matches[1][0];
-        preg_match_all("/hid=([^&]*)/", $imgurl, $matches);
-        $hid = $matches[1][0];
-        preg_match_all("/fid=([^&]*)/", $imgurl, $matches);
-        $fid = $matches[1][0];
-        print_r(PHP_EOL . "url: " . $imgurl . PHP_EOL);
-        return [
-            'hip_solution' => trim(readline()),
-            'hip_token'    => $hid,
-            'fid'          => $fid,
-        ];
-    }
-
 
     public function send($username, $text, $edit_id = false) {
         $milliseconds = round(microtime(true) * 1000);
@@ -326,11 +224,8 @@ class Transport {
      * @param $username
      * @return null
      */
-    public function loadContacts($username) {
-        $response = $this->requestJSON('contacts', [
-            'format' => [$username],
-        ]);
-
+    public function loadContacts() {
+        $response = $this->requestJSON('contacts');
         return isset($response->contacts) ? $response->contacts : null;
     }
 
@@ -343,7 +238,72 @@ class Transport {
 
         return isset($response->username) ? $response : null;
     }
+	
+	public function loadFullProfile() {
+        $request = new Endpoint('GET', 'https://api.skype.com/users/self/profile');
+        $request->needSkypeToken();
 
+        $response = $this->requestJSON($request);
+
+        return isset($response->firstname) ? $response : null;
+	}
+	
+	public function updateProfile($data) {
+		$request = new Endpoint('POST', 'https://api.skype.com/users/self/profile/partial');
+		$request->needSkypeToken();
+		$Result = $this->request($request, [
+            'json' => ["payload" => $data]
+            ]);
+        return $Result;
+	}
+
+	
+	public function updateAvatar($loginName,  $filename) {
+		$request = new Endpoint('PUT', 'https://avatar.skype.com/v1/avatars/%s');
+		$request->needSkypeToken();
+		$filePointer = fopen($filename, 'rb');
+		$Result = $this->request($request, [
+			'debug' => false,
+			'format' => [$loginName],
+			'headers' => [
+				'Content-Length' => filesize($filename),
+				'Accept' => 'application/json, text/javascript',
+				'Accept-Encoding' => 'gzip, deflat',
+				'Content-Type' => mime_content_type($filename)
+			],
+            'body' => $filePointer
+            ]);
+        return $Result;
+	}
+	
+	public function getInvites() {
+		$request = new Endpoint('GET', 'https://contacts.skype.com/contacts/v2/users/self/invites');
+		$request->needSkypeToken();
+		$Result = $this->requestJson($request, ['debug' => false]);
+		return $Result;
+	}
+	
+	public function blockContact($mri) {
+		$request = new Endpoint('PUT', 'https://contacts.skype.com/contacts/v2/users/self/contacts/blocklist/%s');
+		$request->needSkypeToken();
+		$Result = $this->request($request, ['debug' => false, 'format' => [$mri], 'json' => ['ui_version' => 'skype.com', 'report_abuse' => false]]);
+		return $Result;
+	}
+	
+	public function unblockContact($mri) {
+		$request = new Endpoint('DELETE', 'https://contacts.skype.com/contacts/v2/users/self/contacts/blocklist/%s');
+		$request->needSkypeToken();
+		$Result = $this->request($request, ['debug' => false, 'format' => [$mri]]);
+		return $Result;
+	}
+	
+	public function getBlockList() {
+		$request = new Endpoint('GET', 'https://contacts.skype.com/contacts/v2/users/self/blocklist');
+		$request->needSkypeToken();
+		$Result = $this->requestJSON($request);
+		return $Result;
+	}
+	
     /**
      * Скачиваем информацию о конкретном контакте, только если его нет в кеше
      * @param $username
@@ -375,10 +335,11 @@ class Transport {
 
     public function subscribeToResources()
     {
-        $request = new Endpoint('POST', 'https://client-s.gateway.messenger.live.com/v1/users/ME/endpoints/SELF/subscriptions');
+        $request = new Endpoint('POST', 'https://%sclient-s.gateway.messenger.live.com/v1/users/ME/endpoints/SELF/subscriptions');
         $request->needRegToken();
 
         return $this->requestJSON($request, [
+			'format' => [$this->cloud?$this->cloud:''],
             'json' => [
                 'interestedResources' => [
                     '/v1/threads/ALL',
@@ -416,10 +377,11 @@ class Transport {
 
     public function setStatus($status)
     {
-        $request = new Endpoint('PUT', 'https://client-s.gateway.messenger.live.com/v1/users/ME/presenceDocs/messagingService');
+        $request = new Endpoint('PUT', 'https://%sclient-s.gateway.messenger.live.com/v1/users/ME/presenceDocs/messagingService');
         $request->needRegToken();
 
         $this->request($request, [
+			'format' => [$this->cloud?$this->cloud : ''],
             'json' => [
                 'status' => $status
             ]
