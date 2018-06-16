@@ -1,9 +1,11 @@
 <?php
+chdir(dirname(__FILE__));
 /* @var $loader \Composer\Autoload\ClassLoader */
 $loader = require 'vendor/autoload.php';
 $loader->setUseIncludePath(__DIR__.'/skype_web_php/');
 $loader->register();
 
+use skype_web_php\SkypeSession;
 use skype_web_php\Skype;
 
 $username = '';
