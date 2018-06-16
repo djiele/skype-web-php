@@ -16,7 +16,10 @@ class Skype
      *
      */
     const STATUS_HIDDEN = 'Hidden';
-
+    /**
+     *
+     */
+    const STATUS_BUSY = 'Busy';
     /**
      * @var
      */
@@ -44,9 +47,9 @@ class Skype
      * @param $password
      * @throws \Exception
      */
-    public function login($username, $password, $skypeToken)
+    public function login($username, $dataPath)
     {
-        $this->transport->login($skypeToken);
+        $this->transport->login($username, $dataPath);
         $this->profile = $this->transport->loadFullProfile();
         $this->contacts = $this->transport->loadContacts();
         $this->transport->createStatusEndpoint();

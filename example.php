@@ -11,7 +11,7 @@ $password = '';
 
 
 $skype = new Skype();
-$skype->login($username, $password);
+$skype->login($username, getcwd().DIRECTORY_SEPARATOR.'app-data'.DIRECTORY_SEPARATOR);
 
 $contact_id = $skype->getContact("vomoskal")->id;
 $message_id = $skype->sendMessage("Hello: ".date('Y-m-d H:i:s'), $contact_id);

@@ -17,9 +17,14 @@ class Transport {
     /**
      * @var Client
      */
+	private $dataPath;
     private $client;
     private $skypeToken;
+	private $skypeTokenExpires;
     private $regToken;
+	private $regTokenExpires;
+	private $endpointUrl;
+	private $endpointId;
     private $cloud;
 
     /**
@@ -71,23 +76,14 @@ class Transport {
 				$location = array_pop($tmp);
                 preg_match('#https?://([^-]*-)client\-s#', $location, $matches);
                 if (array_key_exists(1, $matches)) {
-                    $this->cloud = $matches[1];
+					if($matches[1] !== $this->cloud) {
+						$this->cloud = $matches[1];
+					}
                 }
             }
             return $Response;
         }));
 
-        /**
-         * Ловушка для отлова хедера Set-RegistrationToken
-         * Тоже нужен для отправки сообщений
-         */
-        $Stack->push(Middleware::mapResponse(function (ResponseInterface $Response) {
-            $header = $Response->getHeader("Set-RegistrationToken");
-            if (count($header) > 0) {
-                $this->regToken = trim(explode(';', $header[0])[0]);
-            }
-            return $Response;
-        }));
 
         //$cookieJar = new FileCookieJar('cookie.txt', true);
 
@@ -165,21 +161,42 @@ class Transport {
      * @return bool
      * @throws Exception
      */
-    public function login($skypeToken) {
-		$this->skypeToken = $skypeToken;
+    public function login($username, $dataPath) {
+		$this->dataPath = $dataPath;
+		$sessionData = json_decode(file_get_contents($this->dataPath.$username.'-session.json'), true);
+		$sessionData['@dataPath'] = $this->dataPath; 
+		$tmp = SkypeSession::getOrSetSkypeToken($username, $sessionData);
+		$this->skypeToken = $tmp['skypetoken'];
+		$this->skypeTokenExpires = (int)$tmp['expires_in'];
+		$sessionData['skypeToken']['skypetoken'] = $this->skypeToken;
+		$sessionData['skypeToken']['expires_in'] = $this->skypeTokenExpires;
+		
 		$this->request('asm', [
 			'form_params' => [
 				'skypetoken' => $this->skypeToken,
 			],
 		]);
-		$this->request('endpoint', [
-			'headers' => [
-				'Authentication' => "skypetoken=$this->skypeToken"
-			],
-			'json' => [
-				'skypetoken' => $this->skypeToken
-			]
-		]);
+		
+		$tmp = SkypeSession::loadRegistrationToken($username, $sessionData);
+		if(empty($tmp['key']) || (int)$tmp['expires']<time()) {
+			echo 'fetch a new registration token', PHP_EOL;
+			$Response = $this->request('endpoint', [
+				'headers' => ['Authentication' => "skypetoken=$this->skypeToken"],
+				'json' => ['skypetoken' => $this->skypeToken]
+			]);
+			$tmp = SkypeSession::getOrSetTokenFromResponse($username, $sessionData, $Response);
+			$this->endpointUrl = $tmp['url'];
+			$this->endpointId = $tmp['endpointId'];
+			$this->regToken = $tmp['key'];
+			$this->regTokenExpires = $tmp['expires'];
+			$this->cloud = $tmp['cloudPrefix'];
+		} else {
+			$this->endpointUrl = $sessionData['regToken']['url'];
+			$this->endpointId = $sessionData['regToken']['endpointId'];
+			$this->regToken = $sessionData['regToken']['key'];
+			$this->regTokenExpires = $sessionData['regToken']['expires'];
+			$this->cloud = $sessionData['regToken']['cloudPrefix'];
+		}
 		return true;
     }
 
@@ -359,6 +376,7 @@ class Transport {
         $request->needRegToken();
 
         $this->request($request, [
+			'debug' => false,
             'json' => [
                 'id' => 'messagingService',
                 'type' => 'EndpointPresenceDoc',
