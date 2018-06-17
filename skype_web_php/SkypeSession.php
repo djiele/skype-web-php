@@ -45,7 +45,7 @@ class SkypeSession {
 		return $sessionData['regToken'];
 	}
 	
-	static public function getOrSetTokenFromResponse($username, array $sessionData, ResponseInterface $response, $expiresTreshold=600) {
+	static public function getOrSetTokenFromResponse($username, array $sessionData, $response, $expiresTreshold=600) {
 		if(201==$response->getStatusCode()) {
 			$dataPath = $sessionData['@dataPath'];
 			$header = $response->getHeader("Set-RegistrationToken");

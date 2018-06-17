@@ -75,8 +75,21 @@ class Skype
 		return $Result;
 	}
 	
+	public function sendContactRequest($username, $greeting='Hello would you please add me to your contact list') {
+		$Result = $this->transport->sendContactRequest($username, $greeting);
+		return $Result;
+	}
+	
 	public function getInvites() {
 		return $this->transport->getInvites();
+	}
+	
+	public function acceptOrDeclineInvite($mri, $action='decline') {
+		return $this->transport->acceptOrDeclineInvite($mri, $action='decline');
+	}
+	
+	public function deleteContact($mri) {
+		return $this->transport->deleteContact($mri);
 	}
 	
 	public function blockContact($mri) {
@@ -106,6 +119,10 @@ class Skype
 
         return reset($contact);
     }
+	
+	public function deleteConversation($mri) {
+		return $this->transport->deleteConversation($mri);
+	}
 
     /**
      * @param $text
@@ -127,6 +144,10 @@ class Skype
     {
         return $this->transport->send($contact, $text, $message_id);
     }
+	
+	public function getNewMessages() {
+		return $this->transport->getNewMessages();
+	}
 
     /**
      * @param $callback
@@ -135,7 +156,7 @@ class Skype
     {
         while (true) {
             call_user_func_array($callback, [
-                $this->transport->getNewMessages($this->profile->username),
+                $this->transport->getNewMessages(),
                 $this
             ]);
 

@@ -17,6 +17,8 @@ class Transport {
     /**
      * @var Client
      */
+	private $loginName;
+	private $username;
 	private $dataPath;
     private $client;
     private $skypeToken;
@@ -162,10 +164,14 @@ class Transport {
      * @throws Exception
      */
     public function login($username, $dataPath) {
+		$this->username = $this->loginName = $username;
+		if(false !== ($pos=strpos($this->username, '@'))) {
+			$this->username = substr($this->username, 0, $pos);
+		}
 		$this->dataPath = $dataPath;
-		$sessionData = json_decode(file_get_contents($this->dataPath.$username.'-session.json'), true);
+		$sessionData = json_decode(file_get_contents($this->dataPath.$this->loginName.'-session.json'), true);
 		$sessionData['@dataPath'] = $this->dataPath; 
-		$tmp = SkypeSession::getOrSetSkypeToken($username, $sessionData);
+		$tmp = SkypeSession::getOrSetSkypeToken($this->loginName, $sessionData);
 		$this->skypeToken = $tmp['skypetoken'];
 		$this->skypeTokenExpires = (int)$tmp['expires_in'];
 		$sessionData['skypeToken']['skypetoken'] = $this->skypeToken;
@@ -177,14 +183,23 @@ class Transport {
 			],
 		]);
 		
-		$tmp = SkypeSession::loadRegistrationToken($username, $sessionData);
+		$tmp = SkypeSession::loadRegistrationToken($this->loginName, $sessionData);
+		if(!empty($tmp['url'])) {
+			$ep = new Endpoint('POST', $tmp['url'].'/active');
+			$Response = $this->request($ep, ['debug' => false, 'headers' => ['RegistrationToken' => $tmp['key']], 'json' => ['timeout' => 32]]);
+			if(201 != $Response->getStatusCode()) {
+				$tmp['key'] = '';
+				$tmp['expires'] = 0;
+			}
+		}
+		
 		if(empty($tmp['key']) || (int)$tmp['expires']<time()) {
 			echo 'fetch a new registration token', PHP_EOL;
 			$Response = $this->request('endpoint', [
 				'headers' => ['Authentication' => "skypetoken=$this->skypeToken"],
 				'json' => ['skypetoken' => $this->skypeToken]
 			]);
-			$tmp = SkypeSession::getOrSetTokenFromResponse($username, $sessionData, $Response);
+			$tmp = SkypeSession::getOrSetTokenFromResponse($this->loginName, $sessionData, $Response);
 			$this->endpointUrl = $tmp['url'];
 			$this->endpointId = $tmp['endpointId'];
 			$this->regToken = $tmp['key'];
@@ -293,11 +308,58 @@ class Transport {
         return $Result;
 	}
 	
+	public function sendContactRequest($username, $greeting) {
+		$request = new Endpoint('POST', 'https://contacts.skype.com/contacts/v2/users/self/contacts');
+		$request->needSkypeToken();
+		$Result = $this->request($request, ['debug' => false, 'json' => ['mri' => '8:live:'.$username, 'greeting' => $greeting]]);
+		return 200 == $Result->getStatusCode() ? true : false;
+	}
+	
 	public function getInvites() {
 		$request = new Endpoint('GET', 'https://contacts.skype.com/contacts/v2/users/self/invites');
 		$request->needSkypeToken();
 		$Result = $this->requestJson($request, ['debug' => false]);
 		return $Result;
+	}
+	
+	public function acceptOrDeclineInvite($mri, $action) {
+		if(!in_array($action, array('accept', 'decline'))) {
+			return false;
+		}
+		$request = new Endpoint('PUT', 'https://contacts.skype.com/contacts/v2/users/self/invites/%s/%s');
+		$request->needSkypeToken();
+		$Result = $this->request($request, ['debug' => false, 'format' => [$mri, $action]]);
+		return 200==$Result->getStatusCode() ? true : false;
+	}
+	
+	public function deleteContact($mri) {
+		if(false === strpos($mri, ':')) {
+			$mri = rawurlencode('8:live:'.$mri);
+		}
+		$request = new Endpoint('DELETE', 'https://contacts.skype.com/contacts/v2/users/self/contacts/%s');
+		$request->needSkypeToken();
+		$Result = $this->request($request, [
+				'debug' => false,
+				'format' => [$mri],
+				'headers' => [
+					'Authority' => 'contacts.skype.com',
+					'Method' => 'DELETE',
+					'Path' => '/contacts/v2/users/'.$this->username.'/contacts/'.$mri,
+					'Scheme' => 'https',
+					'Accept' => 'application/json; ver=1.0',
+					'Accept-Encoding' => 'gzip, deflate',
+					'Accept-Language' => 'fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7',
+					'Content-Type' => 'application/json',
+					'Origin' => 'https://web.skype.com',
+					'Referer' => 'https://web.skype.com/fr/',
+					'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/66.0.3359.170 Safari/537.36 OPR/53.0.2907.99',
+					'Content-Length' => 0,
+					'X-Skype-Caller' => 'skype.com',
+					'X-Skype-Request-Id' => '9f133492'
+				]
+			]
+		);
+		return 200==$Result->getStatusCode() ? true : false;
 	}
 	
 	public function blockContact($mri) {
@@ -337,16 +399,28 @@ class Transport {
         ]);
         return $Result;
     }
+	
+	public function deleteConversation($mri) {
+		if(false === strpos($mri, ':')) {
+			$mri = rawurlencode('8:live'.$mri);
+		}
+        $request = new Endpoint('DELETE', 'https://%sclient-s.gateway.messenger.live.com/v1/users/ME/conversations/%s/messages');
+        $request->needRegToken();
+        $response = $this->request($request, [
+			'debug' => false,
+            'format' => [$this->cloud ? $this->cloud : '', $mri]
+        ]);
+		return 200 == $response->getStatusCode() ? true : false;
+	}
 
 
-    public function getNewMessages($username){
+    public function getNewMessages(){
         $request = new Endpoint('POST', 'https://%sclient-s.gateway.messenger.live.com/v1/users/ME/endpoints/SELF/subscriptions/0/poll');
         $request->needRegToken();
 
         $response = $this->requestJSON($request, [
-            'format' => [$this->cloud, "8:$username"]
+            'format' => [$this->cloud ? $this->cloud : '']
         ]);
-
         return isset($response->eventMessages) ? $response->eventMessages : null;
     }
 
@@ -356,7 +430,7 @@ class Transport {
         $request->needRegToken();
 
         return $this->requestJSON($request, [
-			'format' => [$this->cloud?$this->cloud:''],
+			'format' => [$this->cloud ? $this->cloud : ''],
             'json' => [
                 'interestedResources' => [
                     '/v1/threads/ALL',
@@ -372,11 +446,12 @@ class Transport {
 
     public function createStatusEndpoint()
     {
-        $request = new Endpoint('PUT', 'https://client-s.gateway.messenger.live.com/v1/users/ME/endpoints/SELF/presenceDocs/messagingService');
+        $request = new Endpoint('PUT', 'https://%sclient-s.gateway.messenger.live.com/v1/users/ME/endpoints/SELF/presenceDocs/messagingService');
         $request->needRegToken();
 
         $this->request($request, [
 			'debug' => false,
+			'format' => [$this->cloud ? $this->cloud : ''],
             'json' => [
                 'id' => 'messagingService',
                 'type' => 'EndpointPresenceDoc',
@@ -399,7 +474,7 @@ class Transport {
         $request->needRegToken();
 
         $this->request($request, [
-			'format' => [$this->cloud?$this->cloud : ''],
+			'format' => [$this->cloud ? $this->cloud : ''],
             'json' => [
                 'status' => $status
             ]
