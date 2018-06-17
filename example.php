@@ -9,7 +9,6 @@ use skype_web_php\SkypeSession;
 use skype_web_php\Skype;
 
 $username = '';
-$password = '';
 
 
 $skype = new Skype();
