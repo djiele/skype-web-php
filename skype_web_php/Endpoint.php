@@ -110,4 +110,12 @@ class Endpoint
 
         return $Request;
     }
+	
+	public function getUri() {
+		return $this->uri;
+	}
+	
+	public function getMethod() {
+		return $this->method;
+	}
 }
