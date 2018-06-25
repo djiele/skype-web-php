@@ -572,7 +572,7 @@ class Transport {
 		}
 	}
 	
-	public function endpointSetProperties() {
+	public function endpointSetSupportMessageProperties() {
 		$Request = new Endpoint('PUT', 'https://%sclient-s.gateway.messenger.live.com/v1/users/ME/endpoints/SELF/properties?name=supportsMessageProperties');
 		$Request->needRegToken();
 		$Response = $this->request($Request, ['debug' => false, 'format' => [$this->cloud ? $this->cloud : ''], 'json' => ['supportsMessageProperties' => true]]);
@@ -611,7 +611,18 @@ class Transport {
 		$Request = new Endpoint('GET', 'https://%sclient-s.gateway.messenger.live.com/v1/users/ME/conversations?view=msnp24Equivalent&startTime=0&targetType=Passport|Skype|Lync|Thread');
 		$Request->needRegToken();
 		$Response = $this->requestJson($Request, ['debug' => false, 'format' => [$this->cloud ? $this->cloud : '']]);
-		return isset($Response->conversations) ? $Response->conversations : null;
+		if(isset($Response->conversations)) {
+			foreach($Response->conversations as &$conversation) {
+				if(isset($conversation->threadProperties) && isset($conversation->threadProperties->members)) {
+					if(!is_array($conversation->threadProperties->members)) {
+						$conversation->threadProperties->members = json_decode($conversation->threadProperties->members);
+					}
+				}
+			}
+			return $Response->conversations;
+		} else {
+			return null;
+		}
 	}
 	
 	public function deleteConversation($mri) {
@@ -1017,6 +1028,9 @@ class Transport {
 	}
 	
 	public function setThreadProperty($id, $key, $value) {
+		if(!in_array($key, ['joiningenabled', 'historydisclosed', 'topic'])) {
+			echo 'property [', $key, '] not found', PHP_EOL;
+		}
 		$Request = new Endpoint('PUT', 'https://%sclient-s.gateway.messenger.live.com/v1/threads/%s/properties?name=%s');
 		$Request->needRegToken();
         $Response = $this->request($Request, [

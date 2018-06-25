@@ -109,8 +109,44 @@ class Skype
 		return trim($this->profile->firstname.' '.$this->profile->lastname);
 	}
 
+	public function usernameToMri($username) {
+		$match = [];
+		if(false === strpos($username, ':') ) {
+			if(false !== ($pos=strpos($username, '@'))) {
+				$lookUp = substr($username, $pos+1);
+			}
+			$lookUp = ':'.$username;
+		} else {
+			$lookUp = $username;
+		}
+		$lookUpLen = strlen($lookUp);
+		foreach($this->contacts as $contact) {
+			if($lookUp == substr($contact->mri, -$lookUpLen)) {
+				$match[] = $contact->mri;
+			}
+		}
+		$cnt = count($match);
+		if(0 == $cnt) {
+			foreach($this->conversations as $conversation) {
+				if($lookUp == substr($conversation->id, -$lookUpLen)) {
+					$match[] = $conversation->id;
+				}
+			}
+		}
+		$match = array_unique($match, SORT_STRING);
+		$cnt = count($match);
+		if(1 == $cnt) {
+			return $match[0];
+		} else {
+			echo "No match or ambiguous username [$username]. Returned as is.", PHP_EOL;
+			return $username;
+		}
+	}
+	
 	public function updateProfile($data) {
-		$Result = $this->transport->updateProfile($data);
+		if(($Result = $this->transport->updateProfile($data))) {
+			$this->profile = $this->transport->loadFullProfile();
+		}
 		return $Result;
 	}
 	
@@ -130,34 +166,6 @@ class Skype
 	
 	public function acceptOrDeclineInvite($mri, $action='decline') {
 		return $this->transport->acceptOrDeclineInvite($mri, $action='decline');
-	}
-	
-	public function usernameToMri($username) {
-		$match = [];
-		if(false !== ($pos=strpos($username, '@'))) {
-			$username = substr($username, $pos+1);
-		}
-		if(false === strpos($username, ':') ) {
-			$lookUp = ':'.$username;
-		} else {
-			$lookUp = $username;
-		}
-		$lookUpLen = strlen($lookUp);
-		foreach($this->contacts as $contact) {
-			if($lookUp == substr($contact->mri, -$lookUpLen, $lookUpLen)) {
-				$match[] = $contact->mri;
-			}
-		}
-		$cnt = count($match);
-		if(0 == $cnt) {
-			echo "no match username \"$username\"", PHP_EOL;
-			return null;
-		} else if(1 < $cnt) {
-			echo "username \"$username\" is ambiguous", PHP_EOL;
-			return null;
-		} else {
-			return $match[0];
-		}
 	}
 	
 	public function deleteContact($mri) {
@@ -198,16 +206,20 @@ class Skype
      */
     public function getContact($mri)
     {
-		
-        $contact = array_filter($this->contacts, function ($current) use ($mri) {
-            return $current->mri == $mri;
-        });
+		$mri = $this->usernameToMri($mri);
+		if($mri) {
+			$contact = array_filter($this->contacts, function ($current) use ($mri) {
+				return $current->mri == $mri;
+			});
 
-        return reset($contact);
+			return reset($contact);
+		} else {
+			return null;
+		}
     }
 	
-	public function endpointSetProperties() {
-		return $this->transport->endpointSetProperties();
+	public function endpointSetSupportMessageProperties() {
+		return $this->transport->endpointSetSupportMessageProperties();
 	}
 	
 	public function pingGateway() {
@@ -225,6 +237,15 @@ class Skype
 	public function getStatus(){
 		$tmp = $this->messagingGetMyPresenceDocs();
 		return isset($tmp->status) ? $tmp->status : 'undefined';
+	}
+	
+	public function &getConversation($id) {
+        foreach($this->conversations as $ndx => &$conversation) {
+            if($id == $conversation->id) {
+				return $conversation;
+			}
+        }
+		return null;
 	}
 	
 	public function deleteConversation($mri) {
@@ -370,7 +391,7 @@ class Skype
 	}
 	
 	public function &getThread($id) {
-        foreach($this->threads as $ndx=>&$thread) {
+        foreach($this->threads as $ndx => &$thread) {
             if($id == $thread->id) {
 				return $thread;
 			}
@@ -379,7 +400,7 @@ class Skype
 	}
 	
 	public function getThreadIndex($id) {
-        foreach($this->threads as $ndx=>$thread) {
+        foreach($this->threads as $ndx => $thread) {
             if($id == $thread->id) {
 				return $ndx;
 			}
@@ -388,14 +409,33 @@ class Skype
 	}
 	
 	public function createThread($topic, array $members, $joiningenabled=false, $historydisclosed=false) {
-		$ret = false;
+		$selfFound = false;
+		foreach($members as $ndx => $member) {
+			$member['id'] = $this->usernameToMri($member['id']);
+			if(!$member['id']) {
+				unset($members[$ndx]);
+				continue;
+			}
+			if($this->profile->mri == $member['id']) {
+				$selfFound = true;
+				$members[$ndx]['role'] = 'Admin';
+			}
+		}
+		if(false == $selfFound) {
+			$members[] = ['id' => $this->profile->mri, 'role' => 'Admin'];
+		}
+		$members = array_values($members);
+		if(1 == count($members) && $this->profile->mri == $members[0]['id']) {
+			return false;
+		}
 		$threadUrl = $this->transport->initiateThread($members);
 		if($threadUrl) {
 			$threadId = substr($threadUrl, strrpos($threadUrl, '/')+1);
-			echo $threadId, PHP_EOL;
 			$this->setThreadProperty($threadId, 'joiningenabled', $joiningenabled ? 'true' : 'false');
 			$this->setThreadProperty($threadId, 'historydisclosed', $historydisclosed ? 'true' : 'false');
 			$this->setThreadProperty($threadId, 'topic', $topic);
+			$this->conversations = $this->transport->loadConversations();
+			$this->threads = $this->loadThreads();
 			return true;
 		} else {
 			return false;
@@ -403,10 +443,29 @@ class Skype
 	}
 	
 	public function setThreadAvatar($id, array $perms, $filename) {
-		return $this->transport->setThreadAvatar($id, $perms, $filename);
+		if($uploadInfos=$this->transport->setThreadAvatar($id, $perms, $filename)) {
+			if(is_object($t = $this->getThread($id))) {
+				if(!isset($t->properties->picture)) {
+					$t->properties->picture = '';
+				}
+				$t->properties->picture = 'URL@'.$uploadInfos->view_location;
+				$c = $this->getConversation($id);
+				if($c) {
+					$c->threadProperties->picture = $t->properties->picture;
+				}
+			}
+			return true;
+		} else {
+			return false;
+		}
 	}
 	
 	public function addOrEditThreadMember($id, $addId, $role='User') {
+		$addId = $this->usernameToMri($addId);
+		if(!$addId) {
+			echo 'User [', $addId,'] not found', PHP_EOL;
+			return false;
+		}
 		if(-1 == ($threadIndex = $this->getThreadIndex($id))) {
 			echo 'Thread [', $id,'] not found', PHP_EOL;
 			return false;
@@ -416,21 +475,28 @@ class Skype
 		$targetContactIsAdmin = false;
 		$targetContactIndex = -1;
 		foreach($thread->members as $ndx => $member) {
+			if($addId == $member->id) {
+				$targetContactIndex = $ndx;
+			}
 			if('admin' == strtolower($member->role)) {
 				$countAdmins++;
 				if($addId == $member->id) {
 					$targetContactIsAdmin = true;
-					$targetContactIndex = $ndx;
 				}
 			}
 		}
-		if('admin' == strtolower($role) && $targetContactIsAdmin && 1 == $countAdmins) {
+		if('user' == strtolower($role) && $targetContactIsAdmin && 1 == $countAdmins) {
 			echo 'Cancelled. No admins after operation', PHP_EOL;
 			return false;
 		}
 		if($this->transport->addOrEditThreadMember($id, $addId, $role)) {
 			if(-1 == $targetContactIndex) {
 				$this->threads[$threadIndex] = $this->transport->threadInfos($id);
+				$conversation = $this->getConversation($id);
+				if($conversation) {
+					$conversation->threadProperties->membercount++;
+					$conversation->threadProperties->members[] = $addId;
+				}
 			} else {
 				$thread->members[$targetContactIndex]->role = $role;
 			}
@@ -450,20 +516,32 @@ class Skype
 		$targetContactIsAdmin = false;
 		$targetContactIndex = -1;
 		foreach($thread->members as $ndx => $member) {
+			if($rmId == $member->id) {
+				$targetContactIndex = $ndx;
+			}
 			if('admin' == strtolower($member->role)) {
 				$countAdmins++;
-				if($addId == $member->id) {
+				if($rmId == $member->id) {
 					$targetContactIsAdmin = true;
-					$targetContactIndex = $ndx;
 				}
 			}
 		}
-		if('admin' == strtolower($role) && $targetContactIsAdmin && 1 == $countAdmins) {
+		if($targetContactIsAdmin && 1 == $countAdmins) {
 			echo 'Cancelled. No admins after operation', PHP_EOL;
 			return false;
 		}
 		if($this->transport->removeThreadMember($id, $rmId)) {
 			unset($thread->members[$targetContactIndex]);
+			$thread->members = array_values($thread->members);
+			$conversation = $this->getConversation($id);
+			if($conversation) {
+				$conversation->threadProperties->membercount--;
+				$ndx = array_search($rmId, $conversation->threadProperties->members);
+				if(false !== $ndx) {
+					unset($conversation->threadProperties->members[$ndx]);
+					$conversation->threadProperties->members = array_values($conversation->threadProperties->members);
+				}
+			}
 			return true;
 		} else {
 			return false;
@@ -471,7 +549,22 @@ class Skype
 	}
 	
 	public function setThreadProperty($id, $key, $value) {
-		$this->transport->setThreadProperty($id, $key, $value);
+		if($this->transport->setThreadProperty($id, $key, $value)) {
+			$key = strtolower($key);
+			if('topic' == $key) {
+				$thread = $this->getThread($id);
+				if($thread) {
+					$thread->properties->topic = $value;
+				}
+				$conversation = $this->getConversation($id);
+				if($conversation) {
+					$conversation->threadProperties->topic = $value;
+				}
+			}
+			return true;
+		} else {
+			return false;
+		}
 	}
 	
 	public function deleteThread($id) {
