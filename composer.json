@@ -7,8 +7,7 @@
     "require": {
         "php": ">=5.4.0",
         "php-curl-class/php-curl-class": "^8.1",
-        "guzzlehttp/guzzle": "^6.1",
-        "guzzle/plugin": "^3.9"
+        "guzzle/guzzle": "^6.3"
     },
     "autoload": {
         "psr-4": {
