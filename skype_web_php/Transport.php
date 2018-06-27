@@ -64,7 +64,7 @@ class Transport {
                 ->needSkypeToken(),
 
             'contacts'     => (new Endpoint('GET',
-                'https://contacts.skype.com/contacts/v2/users/self/contacts'))
+                'https://contacts.skype.com/contacts/v2/users/self/contacts?delta&page_size=100&reason=default'))
                 ->needSkypeToken(),
 
             'send_message' => (new Endpoint('POST',
@@ -125,8 +125,15 @@ class Transport {
         //$cookieJar = new FileCookieJar('cookie.txt', true);
 
         $this->client = new Client([
+			'curl' => [
+				CURLOPT_SSLENGINE_DEFAULT => true,
+				CURLOPT_SSLVERSION => CURL_SSLVERSION_DEFAULT,
+				CURLOPT_COOKIEJAR => $this->dataPath.DIRECTORY_SEPARATOR.'curl'.DIRECTORY_SEPARATOR.'cookie.jar',
+				CURLOPT_COOKIESESSION => true
+			],
             'handler' => $Stack,
-            'cookies' => true
+            'cookies' => true,
+			'headers' => ['User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; ...) Gecko/20100101 Firefox/60.0']
         ]);
 
     }
@@ -166,20 +173,11 @@ class Transport {
         } else {
             $Endpoint = static::$Endpoints[$endpointName];
         }
-		
-		if (!array_key_exists('curl', $params)) {
-			$params['curl'] = [];
-			$params['curl'][CURLOPT_SSLVERSION] = CURL_SSLVERSION_DEFAULT;
-			$params['curl'][CURLOPT_COOKIEJAR] = $this->dataPath.DIRECTORY_SEPARATOR.'curl'.DIRECTORY_SEPARATOR.'cookie.jar';
-			$params['curl'][CURLOPT_COOKIESESSION] = true;
-		}
-		
-		if (!array_key_exists('cookies', $params)) {
-			$params['cookies'] = true;
-		}
-		
-		$params['headers']['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; ...) Gecko/20100101 Firefox/60.0';
+
 		$tmp = $this->autoInjectHeadersByHostname(parse_url($Endpoint->getUri(), PHP_URL_HOST));
+		if(!isset($params['headers'])) {
+			$params['headers'] = [];	
+		}
 		foreach($tmp as $k => $v) {
 			if(!array_key_exists($k, $params['headers'])) {
 				$params['headers'][$k] = $v;
@@ -283,6 +281,19 @@ class Transport {
         $this->request('logout');
         return true;
     }
+	
+	public function enableMessaging() {
+		$ret = false;
+		if($this->setRegistrationToken()) {
+			$this->createStatusEndpoint();
+			$this->subscribeToResources();
+			$this->endpointSetSupportMessageProperties();
+			$ret = true;
+		} else {
+			$ret = false;
+		}
+		return $ret;
+	}
 
     public function subscribeToResources()
     {
@@ -367,7 +378,7 @@ class Transport {
 		$Result = $this->request($Request, [
             'json' => ['payload' => $data]
             ]);
-        return $Result;
+        return 200 == $Result->getStatusCode();
 	}
 	
 	public function updateAvatar($filename) {
@@ -385,7 +396,7 @@ class Transport {
 			],
             'body' => $filePointer
             ]);
-        return $Result;
+        return 200==$Result->getStatusCode();
 	}
 	
     /**
@@ -419,9 +430,6 @@ class Transport {
 	}
 	
 	public function acceptOrDeclineInvite($mri, $action) {
-		if(!in_array($action, array('accept', 'decline'))) {
-			return false;
-		}
 		$Request = new Endpoint('PUT', 'https://contacts.skype.com/contacts/v2/users/self/invites/%s/%s');
 		$Request->needSkypeToken();
 		$Result = $this->request($Request, ['debug' => false, 'format' => [$mri, $action]]);
@@ -462,21 +470,21 @@ class Transport {
 		$Request = new Endpoint('PUT', 'https://contacts.skype.com/contacts/v2/users/self/contacts/blocklist/%s');
 		$Request->needSkypeToken();
 		$Result = $this->request($Request, ['debug' => false, 'format' => [$mri], 'json' => ['ui_version' => self::CLIENTINFO_NAME, 'report_abuse' => false]]);
-		return $Result;
+		return 200 == $Result->getStatusCode();
 	}
 	
 	public function unblockContact($mri) {
 		$Request = new Endpoint('DELETE', 'https://contacts.skype.com/contacts/v2/users/self/contacts/blocklist/%s');
 		$Request->needSkypeToken();
 		$Result = $this->request($Request, ['debug' => false, 'format' => [$mri]]);
-		return $Result;
+		return 200 == $Result->getStatusCode();
 	}
 	
 	public function getBlockList() {
 		$Request = new Endpoint('GET', 'https://contacts.skype.com/contacts/v2/users/self/blocklist');
 		$Request->needSkypeToken();
 		$Result = $this->requestJSON($Request);
-		return $Result;
+		return isset($Result->blocklist) ? $Result->blocklist : null;
 	}
 	
     /**
@@ -1048,16 +1056,16 @@ class Transport {
             'format' => [$this->cloud ? $this->cloud : '', $id]
         ]);
 		
+		/*
         $Request = new Endpoint('DELETE', 'https://%sclient-s.gateway.messenger.live.com/v1/threads/%s');
         $Request->needRegToken();
         $Response = $this->request($Request, [
-			'debug' => false,
+			'debug' => true,
             'format' => [$this->cloud ? $this->cloud : '', $id],
-			'json' => ['threadid' => $id, 'initiator' => '8:since65imnotthere']
+			'json' => []
         ]);
-		
 		echo $Response->getStatusCode(),' ', $Response->getBody(), PHP_EOL;
-		
+		*/
 		return 200 == $Response->getStatusCode();
 	}
 

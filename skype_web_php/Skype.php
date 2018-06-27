@@ -1,5 +1,5 @@
 <?php
-namespace skype_web_php;
+namespace skype_web_php;/**
 
 /**
  * Class Skype
@@ -44,19 +44,23 @@ class Skype
      * @var Transport
      */
     private $transport;
-
+	
     /**
-     *
+     *  @brief constructor
+     *  
+     *  @param string $loginName skype or live username
+     *  @param string $dataPath path to where should be stored session files and cookieJar
+     *  @return void
      */
     public function __construct($loginName, $dataPath)
     {
         $this->transport = new Transport($loginName, $dataPath);
     }
-
+	
     /**
-     * @param $username
-     * @param $password
-     * @throws \Exception
+     *  @brief use MS oauth implemented in SkypeLogin class
+     *  
+     *  @return boolean
      */
     public function login()
     {
@@ -69,46 +73,77 @@ class Skype
 			return false;
 		}
     }
-	
+
+	/**
+	 *  @brief get registration token and mount endpoints
+	 *  
+	 *  @param string $status  self::STATUS_ONLINE|self::STATUS_HIDDEN|self::STATUS_BUSY
+	 *  @return boolean
+	 */
 	public function enableMessaging($status) {
 		$ret = false;
-		if($this->transport->setRegistrationToken()) {
-			$this->transport->createStatusEndpoint();
-			$this->transport->subscribeToResources();
+		if($this->transport->enableMessaging()) {
 			$this->transport->setStatus($status);
 			$this->conversations = $this->transport->loadConversations();
 			$this->threads = $this->loadThreads();
-			$ret = true;
+			return true;
 		} else {
-			$ret = false;
+			return false;
 		}
-		return $ret;
 	}
 
     /**
-     *
+     *  @brief should free resources
+     *  
+     *  @return void
      */
     public function logout()
     {
         $this->transport->logout();
     }
 	
+	/**
+	 *  @brief self explanatory
+	 *  
+	 *  @return boolean
+	 */
 	public function pingWebHost() {
 		return $this->transport->pingWebHost();
 	}
-	
+
+	/**
+	 *  @brief initiate ASM authorization
+	 *  
+	 *  @return boolean
+	 */
 	public function skypeTokenAuth() {
 		return $this->transport->skypeTokenAuth();
 	}
-	
+
+	/**
+	 *  @brief initiate PES authorization
+	 *  
+	 *  @return boolean
+	 */
 	public function getPeToken() {
 		return $this->transport->getPeToken();
 	}
-	
+
+	/**
+	 *  @brief concat firstanme and lastname of current user
+	 *  
+	 *  @return string the user displayname
+	 */
 	public function getMydisplayname() {
 		return trim($this->profile->firstname.' '.$this->profile->lastname);
 	}
 
+	/**
+	 *  @brief attempt to find matching MRI for username
+	 *  
+	 *  @param string $username the username
+	 *  @return string MRI or username if not found
+	 */
 	public function usernameToMri($username) {
 		$match = [];
 		if(false === strpos($username, ':') ) {
@@ -142,32 +177,72 @@ class Skype
 			return $username;
 		}
 	}
-	
-	public function updateProfile($data) {
+
+	/**
+	 *  @brief update user profile with an array of key, value
+	 *  
+	 *  @param array $data properties to be serialized in JSON format
+	 *  @return boolean
+	 */
+	public function updateProfile(array $data) {
 		if(($Result = $this->transport->updateProfile($data))) {
 			$this->profile = $this->transport->loadFullProfile();
 		}
 		return $Result;
 	}
-	
+
+	/**
+	 *  @brief upload user avatar
+	 *  
+	 *  @param string $filename path to image file
+	 *  @return boolean
+	 */
 	public function updateAvatar($filename) {
 		$Result = $this->transport->updateAvatar($filename);
 		return $Result;
 	}
-	
+
+	/**
+	 *  @brief send authorization request to given user
+	 *  
+	 *  @param [in] $mri target user (MRI)
+	 *  @return boolean
+	 */	
 	public function sendContactRequest($mri, $greeting='Hello would you please add me to your contact list') {
 		$Result = $this->transport->sendContactRequest($mri, $greeting);
 		return $Result;
 	}
-	
+
+	/**
+	 *  @brief get pending authorization requests
+	 *  
+	 *  @return array MRI list
+	 */
 	public function getInvites() {
 		return $this->transport->getInvites();
 	}
-	
+
+	/**
+	 *  @brief accept or decline an authorization request
+	 *  
+	 *  @param string $mri MRI of requesting user
+	 *  @param string $action possible values accept|decline
+	 *  @return boolean
+	 */
 	public function acceptOrDeclineInvite($mri, $action='decline') {
+		if(!in_array($action, array('accept', 'decline'))) {
+			echo $action, ' not found in possible values [accept, decline]', PHP_EOL;
+			return false;
+		}
 		return $this->transport->acceptOrDeclineInvite($mri, $action='decline');
 	}
-	
+
+	/**
+	 *  @brief remove authorization for target user
+	 *  
+	 *  @param string $mri MRI of target user
+	 *  @return boolean
+	 */
 	public function deleteContact($mri) {
 		$mri = $this->usernameToMri($mri);
 		if($mri) {
@@ -176,7 +251,13 @@ class Skype
 			return false;
 		}
 	}
-	
+
+	/**
+	 *  @brief add the target user to the block list
+	 *  
+	 *  @param [in] $mri MRI of target user
+	 *  @return boolean
+	 */
 	public function blockContact($mri) {
 		$mri = $this->usernameToMri($mri);
 		if($mri) {
@@ -185,7 +266,13 @@ class Skype
 			return false;
 		}
 	}
-	
+
+	/**
+	 *  @brief remove target user from the block list
+	 *  
+	 *  @param [in] $mri MRI od target user
+	 *  @return boolean
+	 */
 	public function unblockContact($mri) {
 		$mri = $this->usernameToMri($mri);
 		if($mri) {
@@ -194,15 +281,22 @@ class Skype
 			return false;
 		}
 	}
-	
+
+	/**
+	 *  @brief retrieve the list of blocked users
+	 *  
+	 *  @return mixed array list of MRIs or null if error
+	 */
 	public function getBlockList() {
 		$Result = $this->transport->getBlockList();
 		return $Result;
 	}
 
     /**
-     * @param $mri
-     * @return mixed
+     *  @brief get target user profile in local contacts list
+     *  
+     *  @param string $mri MRI of target user
+     *  @return mixed array or null if not found
      */
     public function getContact($mri)
     {
@@ -217,37 +311,74 @@ class Skype
 			return null;
 		}
     }
-	
+
+	/**
+	 *  @brief undocumented method
+	 *  
+	 *  @return boolean
+	 */
 	public function endpointSetSupportMessageProperties() {
 		return $this->transport->endpointSetSupportMessageProperties();
 	}
-	
+
+	/**
+	 *  @brief self explanatory
+	 *  
+	 *  @return boolean
+	 */
 	public function pingGateway() {
 		return $this->transport->pingGateway();
 	}
-	
+
+	/**
+	 *  @brief messaging details of current user
+	 *  
+	 *  @return mixed stdClass or null if error
+	 */
 	public function messagingGetMyProperties(){
 		return $this->transport->messagingGetMyProperties();
 	}
-	
+
+	/**
+	 *  @brief list of connected endpoints and availability
+	 *  
+	 *  @return mixed stdClass or null if error
+	 */
 	public function messagingGetMyPresenceDocs() {
 		return $this->transport->messagingGetMyPresenceDocs();
 	}
 	
+	/**
+	 *  @brief retrieve status of current user
+	 *  
+	 *  @return string possible values [Online, Busy, Hidden]
+	 */
 	public function getStatus(){
 		$tmp = $this->messagingGetMyPresenceDocs();
-		return isset($tmp->status) ? $tmp->status : 'undefined';
+		return is_object($tmp) && isset($tmp->status) ? $tmp->status : 'undefined';
 	}
 	
-	public function &getConversation($id) {
+	/**
+	 *  @brief retrieve conversation details from local conversations list
+	 *  
+	 *  @param string $mri MRI of target conversation
+	 *  @return stdClass a reference on the found object or null if error
+	 */
+	public function &getConversation($mri) {
         foreach($this->conversations as $ndx => &$conversation) {
-            if($id == $conversation->id) {
+            if($mri == $conversation->id) {
 				return $conversation;
 			}
         }
 		return null;
 	}
-	
+
+	/**
+	 *  @brief empty the target conversation
+	 *  
+	 *  @param string MRI of target conversation
+	 *  @return boolean
+	 */
 	public function deleteConversation($mri) {
 		$mri = $this->usernameToMri($mri);
 		if($mri) {
@@ -258,11 +389,13 @@ class Skype
 	}
 
     /**
-     * @param $text
-     * @param $contact
-     * @return bool|float
+     *  @brief send a richText message to the target conversation
+     *  
+     *  @param string $text plain or richText contents
+     *  @param string $mri MRI of target conversation
+     *  @return mixed int message id or false if error
      */
-    public function sendMessage($text, $contact) {
+    public function sendMessage($text, $mri) {
 		$mri = $this->usernameToMri($mri);
 		if($mri) {
 			$displayname = trim($this->profile->firstname.' '.$this->profile->lastname);
@@ -273,10 +406,12 @@ class Skype
     }
 
     /**
-     * @param $text
-     * @param $contact
-     * @param $message_id
-     * @return bool|float
+     *  @brief edit a message from target conversation
+     *  
+     *  @param string $text plain or richText contents
+     *  @param string $mri MRI of target conversation
+     *  @param int $message_id id of target message
+     *  @return mixed int message id or false if error
      */
     public function editMessage($text, $mri, $message_id)
     {
@@ -288,7 +423,14 @@ class Skype
 			return false;
 		}
     }
-	
+
+    /**
+     *  @brief delete a message from target conversation
+     *  
+     *  @param string $mri MRI of target conversation
+     *  @param int $message_id id of target message
+     *  @return mixed int message id or false if error
+     */
     public function deleteMessage($mri, $message_id){
 		$mri = $this->usernameToMri($mri);
 		if($mri) {
@@ -299,74 +441,78 @@ class Skype
 		}
 
     }
-	
-	public function sendImage($mrisWithAccessRights, $filename) {
-		$skipped = [];
+
+	/**
+	 *  @brief share an image with recipients in $mrisWithAccessRights
+	 *  
+	 *  @param array $mrisWithAccessRights recipients list like [8:live:john.doe => [read]]
+	 *  @param string $filename path of the target image
+	 *  @return mixed stdClass details on uploaded file or false if error
+	 */
+	public function sendImage(array $mrisWithAccessRights, $filename) {
 		$passed = [];
 		foreach($mrisWithAccessRights as $mri => $perms) {
-			$lookup = $this->usernameToMri($mri);
-			if($lookUp) {
-				$passed[$mri] = $perms;
-			} else {
-				$skipped[$mri] = $perms;
-			}
+			$mri = $this->usernameToMri($mri);
+			$passed[$mri] = $perms;
 			unset($mrisWithAccessRights[$mri]);
 		}
-		if(0<count($passed)) {
-			$fromDisplayname = $this->getMyDisplayname();
-			return $this->transport->sendImage($passed, $filename, $fromDisplayname);
-		} else {
-			echo 'recipients were skipped ', json_encode($skipped), PHP_EOL;
-			return false;
-		}
+		$fromDisplayname = $this->getMyDisplayname();
+		return $this->transport->sendImage($passed, $filename, $fromDisplayname);
 	}
-	
-	public function sendFile($mrisWithAccessRights, $filename) {
-		$skipped = [];
+
+	/**
+	 *  @brief share file with recipients in $mrisWithAccessRights
+	 *  
+	 *  @param array $mrisWithAccessRights recipients list like [8:live:john.doe => [read]]
+	 *  @param string $filename path of the target file
+	 *  @return mixed stdClass details on uploaded file or false if error
+	 */
+	public function sendFile(array $mrisWithAccessRights, $filename) {
 		$passed = [];
 		foreach($mrisWithAccessRights as $mri => $perms) {
-			$lookup = $this->usernameToMri($mri);
-			if($lookUp) {
-				$passed[$mri] = $perms;
-			} else {
-				$skipped[$mri] = $perms;
-			}
+			$mri = $this->usernameToMri($mri);
+			$passed[$mri] = $perms;
 			unset($mrisWithAccessRights[$mri]);
 		}
-		if(0<count($passed)) {
-			$fromDisplayname = $this->getMyDisplayname();
-			return $this->transport->sendFile($passed, $filename, $fromDisplayname);
-		} else {
-			echo 'recipients were skipped ', json_encode($skipped), PHP_EOL;
-			return false;
-		}
+		$fromDisplayname = $this->getMyDisplayname();
+		return $this->transport->sendFile($passed, $filename, $fromDisplayname);
 	}
-	
+
+	/**
+	 *  @brief send a contact card
+	 *  
+	 *  @param string $mri MRI of target user
+	 *  @param string $contactMri MRI of contact to be sent
+	 *  @return mixed int ID of sent message or false if error
+	 */
 	public function sendContact($mri, $contactMri) {
 		$mri = $this->usernameToMri($mri);
 		$contactMri = $this->usernameToMri($contactMri);
-		if($mri && $contactMri) {
-			$fromDisplayname = $this->getMyDisplayname();
-			$contact = $this->getContact($contactMri);
-			if(is_object($contact) && isset($contact->mri)) {
-				$contactDisplayname = $contact->display_name;
-			} else {
-				echo $contactMri,' not found in contacts list', PHP_EOL;
-				return false;
-			}
+		$fromDisplayname = $this->getMyDisplayname();
+		$contact = $this->getContact($contactMri);
+		if(is_object($contact) && isset($contact->mri)) {
+			$contactDisplayname = $contact->display_name;
 			return $this->transport->sendContact($mri, $fromDisplayname, $contactMri, $contactDisplayname);
 		} else {
-			echo 'invalid recipient or contact', PHP_EOL;
+			echo $contactMri,' not found in contacts list', PHP_EOL;
 			return false;
 		}
 	}
-	
+
+	/**
+	 *  @brief retrieve unread messages
+	 *  
+	 *  @return array message list
+	 */
 	public function getNewMessages() {
 		return $this->transport->getNewMessages();
 	}
 
     /**
-     * @param $callback
+     *  @brief set callback function on message polling
+     *  
+     *  @param function $callback the function to execute on new messages
+     *  @return void
      */
     public function onMessage($callback)
     {
@@ -379,7 +525,12 @@ class Skype
             sleep(1);
         }
     }
-	
+
+	/**
+	 *  @brief inititate the thread list from the conversation list
+	 *  
+	 *  @return array the thread list
+	 */
 	public function loadThreads() {
 		$ret = [];
 		foreach($this->conversations as $ndx => $conversation) {
@@ -389,7 +540,13 @@ class Skype
 		}
 		return $ret;
 	}
-	
+
+	/**
+	 *  @brief retrieve thread details from local thread list
+	 *  
+	 *  @param string $id target thread id
+	 *  @return stdClass reference of found object
+	 */
 	public function &getThread($id) {
         foreach($this->threads as $ndx => &$thread) {
             if($id == $thread->id) {
@@ -398,7 +555,13 @@ class Skype
         }
 		return null;
 	}
-	
+
+	/**
+	 *  @brief get the index of target thread in local thread list
+	 *  
+	 *  @param string $id id of the target thread
+	 *  @return int the found index or -1 if not found
+	 */
 	public function getThreadIndex($id) {
         foreach($this->threads as $ndx => $thread) {
             if($id == $thread->id) {
@@ -407,7 +570,16 @@ class Skype
         }
 		return -1;
 	}
-	
+
+	/**
+	 *  @brief initiate a new thread
+	 *  
+	 *  @param string $topic topic of the new thread
+	 *  @param array $members a list of members like ['id' => '8:live:john.doe', 'role' => 'Admin']
+	 *  @param boolean $joiningenabled true if the thread is public and can be joined by url
+	 *  @param boolean $historydisclosed true to show thread history to new members
+	 *  @return boolean
+	 */
 	public function createThread($topic, array $members, $joiningenabled=false, $historydisclosed=false) {
 		$selfFound = false;
 		foreach($members as $ndx => $member) {
@@ -441,7 +613,15 @@ class Skype
 			return false;
 		}
 	}
-	
+
+	/**
+	 *  @brief set the avatar image of a thread
+	 *  
+	 *  @param string $id id of the target thread
+	 *  @param array $perms permissions 
+	 *  @param string $filename path to the image to upload
+	 *  @return mixed stdClass details on the uploaded file or false on error
+	 */
 	public function setThreadAvatar($id, array $perms, $filename) {
 		if($uploadInfos=$this->transport->setThreadAvatar($id, $perms, $filename)) {
 			if(is_object($t = $this->getThread($id))) {
@@ -454,12 +634,20 @@ class Skype
 					$c->threadProperties->picture = $t->properties->picture;
 				}
 			}
-			return true;
+			return $uploadInfos;
 		} else {
 			return false;
 		}
 	}
-	
+
+	/**
+	 *  @brief add a new member or modify existing user's role
+	 *  
+	 *  @param string $id id of the target thread
+	 *  @param string $addId MRI of the user to ad or edit
+	 *  @param string $role value in list of ['User', 'Admin']
+	 *  @return boolean
+	 */
 	public function addOrEditThreadMember($id, $addId, $role='User') {
 		$addId = $this->usernameToMri($addId);
 		if(!$addId) {
@@ -505,7 +693,14 @@ class Skype
 			return false;
 		}
 	}
-	
+
+	/**
+	 *  @brief remove user from the members list
+	 *  
+	 *  @param string $id id of the target thread
+	 *  @param string $rmId MRI of the members to remove
+	 *  @return boolean
+	 */
 	public function removeThreadMember($id, $rmId) {
 		if(-1 == ($threadIndex = $this->getThreadIndex($id))) {
 			echo 'Thread [', $id,'] not found', PHP_EOL;
@@ -547,8 +742,20 @@ class Skype
 			return false;
 		}
 	}
-	
+
+	/**
+	 *  @brief update a thread property
+	 *  
+	 *  @param string $id id of target thread
+	 *  @param string $key name of the property in possible values ['joiningenabled', 'historydisclosed', 'topic']
+	 *  @param mixed $value string for topic, boolean for others
+	 *  @return boolean
+	 */
 	public function setThreadProperty($id, $key, $value) {
+		if(!in_array($key , ['joiningenabled', 'historydisclosed', 'topic'])) {
+			echo 'property [', $key, '] not found in possible values [joiningenabled, historydisclosed, topic]', PHP_EOL;
+			return false;
+		}
 		if($this->transport->setThreadProperty($id, $key, $value)) {
 			$key = strtolower($key);
 			if('topic' == $key) {
@@ -566,8 +773,71 @@ class Skype
 			return false;
 		}
 	}
-	
+
+	/**
+	 *  @brief set topic for a thread
+	 *  
+	 *  @param string $id id of the target thread
+	 *  @param string $newTopic new topic contents
+	 *  @return boolean
+	 */
+	public function threadChangeTopic($id, $newTopic) {
+		$thread = $this->getThread($id);
+		if($thread && in_array('ChangeTopic', $thread->properties->capabilities)) {
+			return $this->setThreadProperty($threadId, 'topic', $newTopic);
+		} else {
+			echo 'thread [', $id, '] not found or has not permission [ChangeTopic]', PHP_EOL;
+			return false;
+		}
+	}
+
+	/**
+	 *  @brief set wether or not the thread is public
+	 *  
+	 *  @param string $id id of the target thread
+	 *  @param boolean $joiningenabled true|false
+	 *  @return boolean
+	 */
+	public function threadJoiningEnabled($id, $joiningenabled=false) {
+		$thread = $this->getThread($id);
+		if($thread) {
+			return $this->setThreadProperty($threadId, 'joiningenabled', $joiningenabled ? 'true' : 'false');
+		} else {
+			echo 'thread [', $id, '] not found', PHP_EOL;
+			return false;
+		}
+	}
+
+	/**
+	 *  @brief set wether or not new members can see the thread history
+	 *  
+	 *  @param string $id id of the target thread
+	 *  @param boolean $historydisclosed true|false
+	 *  @return boolean
+	 */
+	public function threadHistoryDisclosed($id, $historydisclosed=false) {
+		$thread = $this->getThread($id);
+		if($thread) {
+			return $this->setThreadProperty($threadId, 'historydisclosed', $historydisclosed ? 'true' : 'false');
+		} else {
+			echo 'thread [', $id, '] not found', PHP_EOL;
+			return false;
+		}
+	}
+
+	/**
+	 *  @brief empty the target thread (conversation)
+	 *  
+	 *  @param string $id id of the target thread
+	 *  @return boolean
+	 */
 	public function deleteThread($id) {
-		return $this->transport->deleteThread($id);
+		$thread = $this->getThread($id);
+		if($thread) {
+			return $this->transport->deleteThread($id);
+		} else {
+			echo 'thread [', $id, '] not found', PHP_EOL;
+			return false;
+		}
 	}
 }
