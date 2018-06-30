@@ -1,5 +1,5 @@
 <?php
-namespace skype_web_php;/**
+namespace skype_web_php;
 
 /**
  * Class Skype
@@ -35,6 +35,10 @@ class Skype
     /**
      * @var
      */
+    public $blocklist;
+    /**
+     * @var
+     */
     public $conversations;
     /**
      * @var
@@ -52,9 +56,9 @@ class Skype
      *  @param string $dataPath path to where should be stored session files and cookieJar
      *  @return void
      */
-    public function __construct($loginName, $dataPath)
+    public function __construct($loginName, $password, $dataPath)
     {
-        $this->transport = new Transport($loginName, $dataPath);
+        $this->transport = new Transport($loginName, $password, $dataPath);
     }
 	
     /**
@@ -66,8 +70,12 @@ class Skype
     {
         if(true === $this->transport->login()) {
 			$this->profile = $this->transport->loadFullProfile();
-			$this->contacts = $this->transport->loadContacts();
-			$this->groups = $this->transport->loadGroups();
+			$tmp = $this->transport->initLoadContacts();
+			if($tmp) {
+				$this->contacts = $tmp->contacts;
+				$this->groups = $tmp->groups;
+				$this->blocklist = $tmp->blocklist;
+			}
 			return true;
 		} else {
 			return false;
@@ -92,6 +100,14 @@ class Skype
 		}
 	}
 
+	/**
+	 *  @brief free subscriptions and endpoint. force refresh of cached endpoint
+	 *  
+	 *  @return boolean
+	 */
+	public function disableMessaging() {
+		return $this->transport->disableMessaging();
+	}
     /**
      *  @brief should free resources
      *  
@@ -203,6 +219,26 @@ class Skype
 	}
 
 	/**
+	 *  @brief download avatar file
+	 *  
+	 *  @param string $targetDir download dirname
+	 *  @return mixed filename of downloaded file or null if error
+	 */
+	public function downloadAvatar($targetDir) {
+		return $this->transport->downloadAvatar($this->profile->avatarUrl, $targetDir);
+	}
+
+	/**
+	 *  @brief retrieve users matching $searchstring
+	 *  
+	 *  @param string $searchstring the search string
+	 *  @return mixed array or null if error
+	 */
+	public function searchUserDirectory($searchstring) {
+		return $this->transport->searchUserDirectory($searchstring);
+	}
+	
+	/**
 	 *  @brief send authorization request to given user
 	 *  
 	 *  @param [in] $mri target user (MRI)
@@ -311,6 +347,24 @@ class Skype
 			return null;
 		}
     }
+
+	/**
+	 *  @brief download avatar file
+	 *  
+	 *  @param $mri MRI of the target contact
+	 *  @param string $targetDir download dirname
+	 *  @return mixed filename of downloaded file or null if error
+	 */
+	public function downloadContactAvatar($mri, $targetDir) {
+		$mri = $this->usernameToMri($mri);
+		$c = $this->getContact($mri);
+		print_r($c);
+		if($c) {
+			return $this->transport->downloadAvatar($c->profile->avatar_url, $targetDir);
+		} else {
+			echo 'conversation [', $mri,'] not found', PHP_EOL;
+		}
+	}
 
 	/**
 	 *  @brief undocumented method
@@ -641,6 +695,24 @@ class Skype
 	}
 
 	/**
+	 *  @brief download avatar file
+	 *  
+	 *  @param string $id id of the target thread
+	 *  @param string $targetDir download dirname
+	 *  @return mixed filename of downloaded file or null if error
+	 */
+	public function downloadThreadAvatar($id, $targetDir) {
+		$t = $this->getThread($id);
+		print_r($t);
+		if($t) {
+			$url = substr($t->properties->picture, strpos($t->properties->picture, '@')+1);
+			return $this->transport->downloadAvatar($url, $targetDir, $id);
+		} else {
+			echo 'thread [', $id,'] not found', PHP_EOL;
+		}
+	}
+
+	/**
 	 *  @brief add a new member or modify existing user's role
 	 *  
 	 *  @param string $id id of the target thread
@@ -795,7 +867,7 @@ class Skype
 	 *  @brief set wether or not the thread is public
 	 *  
 	 *  @param string $id id of the target thread
-	 *  @param boolean $joiningenabled true|false
+	 *  @param boolean $joiningenabled
 	 *  @return boolean
 	 */
 	public function threadJoiningEnabled($id, $joiningenabled=false) {
@@ -812,7 +884,7 @@ class Skype
 	 *  @brief set wether or not new members can see the thread history
 	 *  
 	 *  @param string $id id of the target thread
-	 *  @param boolean $historydisclosed true|false
+	 *  @param boolean $historydisclosed
 	 *  @return boolean
 	 */
 	public function threadHistoryDisclosed($id, $historydisclosed=false) {

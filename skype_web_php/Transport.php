@@ -18,6 +18,7 @@ class Transport {
 	const CLIENT_VERSION = '908/1.118.0.30//skype.com';
 	const LOCKANDKEY_APPID = 'msmsgs@msnmsgr.com';
 	const LOCKANDKEY_SECRET = 'Q1P7W2E4J9R8U3S5';
+	const SKYPE_WEB = 'web.skype.com';
 	const CONTACTS_HOST = 'api.skype.com';
 	const NEW_CONTACTS_HOST = 'contacts.skype.com';
 	const DEFAULT_MESSAGES_HOST = 'client-s.gateway.messenger.live.com';
@@ -34,6 +35,7 @@ class Transport {
      */
 	private $webSessionId;
 	private $loginName;
+	private $password;
 	private $username;
 	private $dataPath;
     private $client;
@@ -43,6 +45,8 @@ class Transport {
 	private $regTokenExpires;
 	private $endpointUrl;
 	private $endpointId;
+	private $endpointPresenceDocUrl;
+	private $endpointSubscriptionsUrl;
     private $cloud;
 
     /**
@@ -71,24 +75,23 @@ class Transport {
                 'https://%sclient-s.gateway.messenger.live.com/v1/users/ME/conversations/%s/messages'))
                 ->needRegToken(),
 
-            'logout'  => (new Endpoint('Get',
+            'logout'  => (new Endpoint('GET',
                 'https://login.skype.com/logout?client_id=578134&redirect_uri=https%3A%2F%2Fweb.skype.com&intsrc=client-_-webapp-_-production-_-go-signin')),
         ];
     }
 
-    public function __construct($username, $dataPath) {
-		if(!file_exists($dataPath.$username.'-session.json')) {
-			if(copy($dataPath.'_user-session.template.json', $dataPath.$username.'-session.json')) {
-				die('set your password in file '.$dataPath.$username.'-session.json');
-			} else {
-				die($dataPath.' directory seems to be not writable');
-			}
-		}
+    public function __construct($username, $password, $dataPath) {
 		$this->username = $this->loginName = $username;
+		$this->password = $password;
 		if(false !== ($pos=strpos($this->username, '@'))) {
 			$this->username = substr($this->username, 0, $pos);
 		}
 		$this->dataPath = $dataPath;
+		if(!file_exists($this->dataPath.$username.'-session.json')) {
+			if(!copy($this->dataPath.'_user-session.template.json', $this->dataPath.$username.'-session.json')) {
+				die($this->dataPath.' directory seems to be not writable');
+			}
+		}
         static::init();
 
         $Stack = new HandlerStack();
@@ -235,7 +238,7 @@ class Transport {
      * @throws Exception
      */
     public function login() {
-		$tmp = SkypeLogin::getSkypeToken($this->loginName, $this->dataPath);
+		$tmp = SkypeLogin::getSkypeToken($this->loginName, $this->password, $this->dataPath);
 		if(is_array($tmp) && isset($tmp['skypetoken'])) {
 			$this->skypeToken = $tmp['skypetoken'];
 			$this->skypeTokenExpires = (int)$tmp['expires_in'];
@@ -278,7 +281,8 @@ class Transport {
      * @return bool
      */
     public function logout() {
-        $this->request('logout');
+		echo 'logging out', PHP_EOL;
+		$this->request('logout');
         return true;
     }
 	
@@ -294,13 +298,20 @@ class Transport {
 		}
 		return $ret;
 	}
+	
+	public function disableMessaging() {
+		if($this->probeCurrentEndpoint(array('url' => $this->endpointUrl, 'key' => $this->regToken))) {
+			$this->unsubscribeToResources();
+			$this->deleteEndpoint();
+		}
+	}
 
     public function subscribeToResources()
     {
         $Request = new Endpoint('POST', 'https://%sclient-s.gateway.messenger.live.com/v1/users/ME/endpoints/SELF/subscriptions');
         $Request->needRegToken();
 
-        return $this->requestJSON($Request, [
+        $Response = $this->request($Request, [
 			'format' => [$this->cloud ? $this->cloud : ''],
             'json' => [
                 'interestedResources' => [
@@ -313,14 +324,30 @@ class Transport {
                 'channelType' => 'httpLongPoll'
             ]
         ]);
+		if(201 == $Response->getStatusCode()) {
+			$this->endpointSubscriptionsUrl = $Response->getHeader('Location')[0];
+			return $this->endpointSubscriptionsUrl;
+		} else {
+			return false;
+		}
     }
+	
+	public function unsubscribeToResources() {
+		if($this->endpointSubscriptionsUrl) {
+			$Request = new Endpoint('DELETE', $this->endpointSubscriptionsUrl);
+			$Request->needRegToken();
+			$Response = $this->request($Request, ['debug' => false]);
+			return 200 == $Response->getStatusCode();
+		}
+		return true;
+	}
 
     public function createStatusEndpoint()
     {
         $Request = new Endpoint('PUT', 'https://%sclient-s.gateway.messenger.live.com/v1/users/ME/endpoints/SELF/presenceDocs/messagingService');
         $Request->needRegToken();
 
-        $this->request($Request, [
+        $Response = $this->request($Request, [
 			'debug' => false,
 			'format' => [$this->cloud ? $this->cloud : ''],
             'json' => [
@@ -337,7 +364,44 @@ class Transport {
                 ],
             ]
         ]);
+		$ret = json_decode($Response->getBody());
+		if(200 == $Response->getStatusCode() && is_object($ret) && isset($ret->selfLink)) {
+			$this->endpointPresenceDocUrl = $ret->selfLink;
+			return $this->endpointPresenceDocUrl;
+		} else {
+			return false;
+		}
     }
+	
+	public function deleteEndpoint($expiresTreshold=60) {
+		if($this->endpointUrl)  {
+			$Request = new Endpoint('DELETE', $this->endpointUrl);
+			$Request->needRegToken();
+			$Response = $this->request($Request, ['debug' => false]);
+			$header = $Response->getHeader('Set-RegistrationToken');
+			if(count($header) > 0) {
+				$sessionData = json_decode(file_get_contents($this->dataPath.$this->loginName.'-session.json'), true);
+				$parts = explode(';', $header[0]);
+				$sessionData['regToken']['key'] = trim($parts[0]);
+				$sessionData['regToken']['expires'] = trim($parts[1]);
+				$sessionData['regToken']['expires'] = (int)substr($sessionData['regToken']['expires'], strpos($sessionData['regToken']['expires'], '=')+1)-$expiresTreshold;
+				$sessionData['regToken']['url'] = null;
+				$sessionData['regToken']['endpointId'] = null;
+				$sessionData['regToken']['cloudPrefix'] = null;
+				$this->regToken = $sessionData['regToken']['key'];
+				$this->regTokenExpires = $sessionData['regToken']['expires'];
+				$this->endpointUrl = $sessionData['regToken']['url'];
+				$this->endpointId = $sessionData['regToken']['endpointId'];
+				$this->cloud = $sessionData['regToken']['cloudPrefix'];
+				if(!file_put_contents($this->dataPath.$this->loginName.'-session.json', json_encode($sessionData, JSON_PRETTY_PRINT))) {
+					echo 'session file write error' . PHP_EOL;
+				}
+			}
+			return 200 == $Response->getStatusCode();
+		} else {
+			return true;
+		}
+	}
 
     public function setStatus($status)
     {
@@ -399,6 +463,37 @@ class Transport {
         return 200==$Result->getStatusCode();
 	}
 	
+	public function downloadAvatar($url, $targetDir, $basename=null) {
+		$Request = new Endpoint('GET', $url);
+		$Result = $this->request($Request, ['debug' => false]);
+		if(200 == $Result->getStatusCode()) {
+			if(null === $basename) {
+				$downloadFilename = parse_url($url, PHP_URL_PATH);
+				$downloadFilename = substr($downloadFilename, strrpos($downloadFilename, '/')+1);
+			} else {
+				$downloadFilename = $basename;
+			}
+			$downloadFilename = rawurlencode($downloadFilename);
+			if(is_dir($targetDir) && is_writable($targetDir)) {
+				if(file_put_contents($targetDir.DIRECTORY_SEPARATOR.$downloadFilename, $Result->getBody())) {
+					$mime = mime_content_type($targetDir.DIRECTORY_SEPARATOR.$downloadFilename);
+					$downloadFilenameWithExt = $downloadFilename.'.'.substr($mime, strpos($mime, '/')+1);
+					rename($targetDir.DIRECTORY_SEPARATOR.$downloadFilename, $targetDir.DIRECTORY_SEPARATOR.$downloadFilenameWithExt);
+					return $targetDir.DIRECTORY_SEPARATOR.$downloadFilenameWithExt;
+				} else {
+					echo 'file [',$targetDir, DIRECTORY_SEPARATOR, $downloadFilename, '] write_error', PHP_EOL;
+					return null;
+				}
+			} else {
+				echo '[', $targetDir,'] is not a directory or not writeable', PHP_EOL;
+				return null;
+			}
+		} else {
+			echo $Result->getStatusCode(), ' ', $Result->getBody(), PHP_EOL; 
+			return null;
+		}
+	}
+	
     /**
      * Скачиваем список всех контактов и информацию о них для залогиненного юзера
      * @param $username
@@ -415,11 +510,28 @@ class Transport {
 		$Response = $this->requestJSON($Request, []);
 		return isset($Response->groups) ? $Response->groups : null;
 	}
+	
+	public function initLoadContacts() {
+		$Request = new Endpoint('GET', 'https://contacts.skype.com/contacts/v2/users/self');
+		$Request->needSkypeToken();
+		$Result = $this->request($Request, ['debug' => false]);
+		$ret = json_decode($Result->getBody());
+		return 200 == $Result->getStatusCode() && is_object($ret) && isset($ret->contacts) ? $ret : null;
+	}
+	
 	public function sendContactRequest($mri, $greeting) {
 		$Request = new Endpoint('POST', 'https://contacts.skype.com/contacts/v2/users/self/contacts');
 		$Request->needSkypeToken();
 		$Result = $this->request($Request, ['debug' => false, 'json' => ['mri' => $mri, 'greeting' => $greeting]]);
 		return 200 == $Result->getStatusCode() ? true : false;
+	}
+	
+	public function searchUserDirectory($searchstring) {
+		$Request = new Endpoint('GET', 'https://skypegraph.skype.com/search/v1.1/namesearch/swx/?searchstring=%s&requestId=%s');
+		$Request->needSkypeToken();
+		$Response = $this->request($Request, ['debug' => false, 'format' => [rawurlencode($searchstring), substr(uniqid(), -6, 6)]]);
+		$ret = json_decode($Response->getBody());
+		return 200 == $Response->getStatusCode() && is_object($ret) && isset($ret->results) ? $ret->results : null;
 	}
 	
 	public function getInvites() {
@@ -437,9 +549,6 @@ class Transport {
 	}
 	
 	public function deleteContact($mri) {
-		if(false === strpos($mri, ':')) {
-			$mri = rawurlencode('8:live:'.$mri);
-		}
 		$Request = new Endpoint('DELETE', 'https://contacts.skype.com/contacts/v2/users/self/contacts/%s');
 		$Request->needSkypeToken();
 		$Result = $this->request($Request, [
@@ -553,7 +662,7 @@ class Transport {
 					if(!file_put_contents($this->dataPath.$this->loginName.'-session.json', json_encode($sessionData, JSON_PRETTY_PRINT))) {
 						echo 'session file write error' . PHP_EOL;
 					}
-					$ret = true;
+					$ret = $this->endpointUrl;
 				}
 			} else {
 				$ret = false;
@@ -574,7 +683,9 @@ class Transport {
 				'headers' => [
 					'RegistrationToken' => $sessionData['key']
 				],
-				'json' => ['endpointFeatures' => 'Agent']
+				'json' => [
+					'endpointFeatures' => 'Agent'
+				]
 			]);
 			return 200 == $Response->getStatusCode();
 		}
@@ -600,23 +711,23 @@ class Transport {
 	}
 	
 	public function messagingGetMyProperties() {
-		$Request = new Endpoint('GET', 'https://client-s.gateway.messenger.live.com/v1/users/ME/properties');
+		$Request = new Endpoint('GET', 'https://%sclient-s.gateway.messenger.live.com/v1/users/ME/properties');
 		$Request->needRegToken();
-		$Response = $this->request($Request, ['debug' => false]);
+		$Response = $this->request($Request, ['debug' => false, 'format' => [$this->cloud ? $this->cloud : '']]);
 		$ret = json_decode($Response->getBody());
 		return 200 == $Response->getStatusCode() && is_object($ret) && isset($ret->lastActivityAt) ? $ret : null;
 	}
 	
 	public function messagingGetMyPresenceDocs() {
-		$Request = new Endpoint('GET', 'https://client-s.gateway.messenger.live.com/v1/users/ME/presenceDocs/messagingService?view=expanded');
+		$Request = new Endpoint('GET', 'https://%sclient-s.gateway.messenger.live.com/v1/users/ME/presenceDocs/messagingService?view=expanded');
 		$Request->needRegToken();
-		$Response = $this->request($Request, ['debug' => false]);
+		$Response = $this->request($Request, ['debug' => false, 'format' => [$this->cloud ? $this->cloud : '']]);
 		$ret = json_decode($Response->getBody());
 		return 200 == $Response->getStatusCode() && is_object($ret) && isset($ret->type) ? $ret : null;
 	}
 
 	public function loadConversations() {
-		$Request = new Endpoint('GET', 'https://%sclient-s.gateway.messenger.live.com/v1/users/ME/conversations?view=msnp24Equivalent&startTime=0&targetType=Passport|Skype|Lync|Thread');
+		$Request = new Endpoint('GET', 'https://%sclient-s.gateway.messenger.live.com/v1/users/ME/conversations?view=msnp24Equivalent&startTime=0&targetType=Passport|Skype|Lync|Thread|Agent');
 		$Request->needRegToken();
 		$Response = $this->requestJson($Request, ['debug' => false, 'format' => [$this->cloud ? $this->cloud : '']]);
 		if(isset($Response->conversations)) {
@@ -675,7 +786,7 @@ class Transport {
         }
     }
 	
-	function sendImage($mrisWithAccessRights, $filename, $fromDisplayname) {
+	public function sendImage($mrisWithAccessRights, $filename, $fromDisplayname) {
 		$ret = false;
 		if(is_file($filename) && is_readable($filename)) {
 			$Request = new Endpoint('POST', 'https://api.asm.skype.com/v1/objects');
@@ -770,7 +881,7 @@ class Transport {
 		return $ret;
 	}
 	
-	function sendFile($mrisWithAccessRights, $filename, $fromDisplayname) {
+	public function sendFile($mrisWithAccessRights, $filename, $fromDisplayname) {
 		$ret = false;
 		if(is_file($filename) && is_readable($filename)) {
 			$Request = new Endpoint('POST', 'https://api.asm.skype.com/v1/objects');
@@ -1141,9 +1252,8 @@ class Transport {
 		$qwSum = $qwSum % $MODULUS;
 		return [$qwMAC, $qwSum];
 	}
-	
 
-	function getMac256Hash($challenge) {
+	public static function getMac256Hash($challenge) {
 		$clearText = $challenge . self::LOCKANDKEY_APPID;
 		$clearText .= str_repeat('0',  (8 - strlen($clearText) % 8));
 		$cchClearText = floor(strlen($clearText) / 4);

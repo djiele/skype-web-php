@@ -16,11 +16,11 @@ class SkypeLogin {
 		return $srvData;
 	}
 	
-	static public function getSkypeToken($login, $dataPath, $expiresTreshold=3600) {
+	static public function getSkypeToken($login, $passwd, $dataPath, $expiresTreshold=3600) {
 		$sessionData = json_decode(file_get_contents($dataPath.$login.'-session.json'), true);
 		$sessionData['skypeToken']['expires_in'] = (int)$sessionData['skypeToken']['expires_in'];
 		if($sessionData['skypeToken']['expires_in']<time()) {
-			$skypeToken = self::fetchSkypeToken($login, $sessionData['passwd'], $dataPath);
+			$skypeToken = self::fetchSkypeToken($login, $passwd, $dataPath);
 			$sessionData['skypeToken']['skypetoken'] = $skypeToken['skypetoken'];
 			$sessionData['skypeToken']['expires_in'] = (int)$skypeToken['expires_in'];
 			$sessionData['skypeToken']['expires_in'] += (time()-$expiresTreshold);
