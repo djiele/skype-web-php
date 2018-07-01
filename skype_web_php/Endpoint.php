@@ -1,8 +1,5 @@
 <?php
 namespace skype_web_php;
-
-use GuzzleHttp\Psr7\Request;
-
 /**
  * Class Endpoint
  *
@@ -101,13 +98,13 @@ class Endpoint
     public function getRequest($args = [])
     {
         $Request = new Request($this->method, $this->uri, $this->params);
+		$Request->withParams($args['params']);
         if ($this->requires['skypeToken']) {
             $Request = $Request->withHeader('X-SkypeToken', $args['skypeToken']);
         }
         if ($this->requires['regToken']) {
             $Request = $Request->withHeader('RegistrationToken', $args['regToken']);
         }
-
         return $Request;
     }
 	

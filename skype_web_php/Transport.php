@@ -1,16 +1,9 @@
 <?php
-
 namespace skype_web_php;
 
 use Exception;
 use DOMDocument;
 use DOMXPath;
-use GuzzleHttp\Client;
-use GuzzleHttp\Handler\CurlHandler;
-use GuzzleHttp\HandlerStack;
-use GuzzleHttp\Middleware;
-use GuzzleHttp\Promise;
-use Psr\Http\Message\ResponseInterface;
 
 class Transport {
 
@@ -94,14 +87,14 @@ class Transport {
 		}
         static::init();
 
-        $Stack = new HandlerStack();
-        $Stack->setHandler(new CurlHandler());
+        //$Stack = new HandlerStack();
+        //$Stack->setHandler(new CurlHandler());
 
         /**
          * Здесь ставим ловушку, чтобы с помощью редиректов
          *   определить адрес сервера, который сможет отсылать сообщения
          */
-        $Stack->push(Middleware::mapResponse(function (ResponseInterface $Response) {
+        /*$Stack->push(Middleware::mapResponse(function (ResponseInterface $Response) {
             $code = $Response->getStatusCode();
             if (($code >= 301 && $code <= 303) || $code == 307 || $code == 308) {
                 $matches = array();
@@ -125,8 +118,10 @@ class Transport {
             //print_r($Response->getHeaders());
             return $Response;
         }));
+		*/
         //$cookieJar = new FileCookieJar('cookie.txt', true);
 
+		/*
         $this->client = new Client([
 			'curl' => [
 				CURLOPT_SSLENGINE_DEFAULT => true,
@@ -138,7 +133,33 @@ class Transport {
             'cookies' => true,
 			'headers' => ['User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; ...) Gecko/20100101 Firefox/60.0']
         ]);
-
+		*/
+		
+		
+		$this->client = new CurlRequestWrapper($this->dataPath.DIRECTORY_SEPARATOR.'curl'.DIRECTORY_SEPARATOR.'cookie.jar');
+		$this->client->registerCallback(function ($Response) {
+					$code = $Response->getStatusCode();
+					if (($code >= 301 && $code <= 303) || $code == 307 || $code == 308) {
+						$matches = array();
+						$tmp = $Response->getHeader('Location');
+						$location = array_pop($tmp);
+						preg_match('#https?://([^-]*-)client\-s#', $location, $matches);
+						if (array_key_exists(1, $matches)) {
+							if($matches[1] !== $this->cloud) {
+								$this->cloud = $matches[1];
+							}
+						}
+					}
+					return $Response;
+				});
+		$this->client->registerCallback(function ($Response) {
+					$header = $Response->getHeader('X-Correlation-Id');
+					if (count($header) > 0) {
+						$this->webSessionId = $header[0];
+					}
+					//print_r($Response->getHeaders());
+					return $Response;
+				});
     }
 	
 	private function autoInjectHeadersByHostname($hostname) {
@@ -170,7 +191,22 @@ class Transport {
      * @param array $params
      * @return ResponseInterface
      */
-    private function request($endpointName, $params=[]) {
+	function request($endpointName, $params=[]) {
+		
+        if ($endpointName instanceof Endpoint){
+            $Endpoint = $endpointName;
+        } else {
+            $Endpoint = static::$Endpoints[$endpointName];
+        }
+        $Request = $Endpoint->getRequest([
+            'skypeToken' => $this->skypeToken,
+            'regToken'   => $this->regToken,
+			'params' => $params
+        ]);
+		$Response = $this->client->send($Request->getMethod(), $Request->getUri(), $Request->getParams());
+		return $Response;
+	}
+    private function __request($endpointName, $params=[]) {
         if ($endpointName instanceof Endpoint){
             $Endpoint = $endpointName;
         } else {
@@ -626,6 +662,11 @@ class Transport {
 		$regTokenExpired = $sessionData['regToken']['expires']<time();
 		
 		if(true===$regTokenExpired || !$this->probeCurrentEndpoint($sessionData['regToken'])) {
+			if(true == $regTokenExpired) {
+				echo 'registration token has expired',PHP_EOL;
+			} else {
+				echo 'endpoint probing failed', PHP_EOL;
+			}
 			echo 'fetch a new registration token', PHP_EOL;
 			$ts = time();;
 			$Response = $this->request('endpoint', [
@@ -645,7 +686,7 @@ class Transport {
 					$sessionData['regToken']['endpointId'] = substr($sessionData['regToken']['endpointId'], strpos($sessionData['regToken']['endpointId'], '=')+1);
 					$header = $Response->getHeader('Location');
 					if (count($header) > 0) {
-						$sessionData['regToken']['url'] = $header[0];
+						$sessionData['regToken']['url'] = ltrim($header[0]);
 						$matches = array();
 						preg_match('#https?://([^-]*-)client\-s#', $sessionData['regToken']['url'], $matches);
 						if (array_key_exists(1, $matches)) {
@@ -675,6 +716,7 @@ class Transport {
 	
 	public function probeCurrentEndpoint(array $sessionData) {
 		if(empty($sessionData['url']) || empty($sessionData['key'])) {
+			echo 'empty session data', PHP_EOL;
 			return false;
 		} else {
 			$Request = new Endpoint('PUT', $sessionData['url']);
@@ -687,7 +729,11 @@ class Transport {
 					'endpointFeatures' => 'Agent'
 				]
 			]);
-			return 200 == $Response->getStatusCode();
+			$ret = (200 == $Response->getStatusCode());
+			if(!$ret) {
+				echo $Response->getStatusCode(), ' ', $Response->getBody(), PHP_EOL;
+			}
+			return $ret;
 		}
 	}
 	
@@ -729,17 +775,28 @@ class Transport {
 	public function loadConversations() {
 		$Request = new Endpoint('GET', 'https://%sclient-s.gateway.messenger.live.com/v1/users/ME/conversations?view=msnp24Equivalent&startTime=0&targetType=Passport|Skype|Lync|Thread|Agent');
 		$Request->needRegToken();
-		$Response = $this->requestJson($Request, ['debug' => false, 'format' => [$this->cloud ? $this->cloud : '']]);
-		if(isset($Response->conversations)) {
-			foreach($Response->conversations as &$conversation) {
+		$Response = $this->request($Request, ['debug' => false, 'format' => [$this->cloud ? $this->cloud : '']]);
+		$json = json_decode($Response->getBody());
+		if(200 == $Response->getStatusCode() && is_object($json) && isset($json->conversations)) {
+			foreach($json->conversations as $ndx => $conversation) {
 				if(isset($conversation->threadProperties) && isset($conversation->threadProperties->members)) {
 					if(!is_array($conversation->threadProperties->members)) {
-						$conversation->threadProperties->members = json_decode($conversation->threadProperties->members);
+						$json->conversations[$ndx]->threadProperties->members = json_decode($json->conversations[$ndx]->threadProperties->members);
 					}
 				}
 			}
-			return $Response->conversations;
+			return $json->conversations;
 		} else {
+			if(0 == $Response->getStatusCode()) {
+				sleep(2);
+				$tmp = $this->loadConversations();
+				if(is_array($tmp)) {
+					return $tmp;
+				} else {
+					return false;
+				}
+			}
+			echo $Response->getStatusCode(), ' ', $Response->getBody(), PHP_EOL; 
 			return null;
 		}
 	}
@@ -778,10 +835,10 @@ class Transport {
             'json' => $message_json,
             'format' => [$this->cloud ? $this->cloud : '', $mri]
         ]);
-
-        if (array_key_exists('OriginalArrivalTime', $Response)){//if successful sended
+        if (is_object($Response) && isset($Response->OriginalArrivalTime)){//if successful sended
             return $milliseconds;//message ID
         }else{
+			print_r($Response);
             return false;
         }
     }
@@ -979,26 +1036,18 @@ class Transport {
 	}
 	
 	public function sendContact($mri, $fromDisplayname, $contactMri, $contactDisplayname=null) {
-		if(false === strpos($mri, ':')) {
-			$mri = '8:live:'.$mri;
-		}
-		if(2 == substr_count($contactMri, ':')) {
-			$contactMri = substr($contactMri, strpos($contactMri, ':')+1);
-		}
-		if(false === strpos($contactMri, ':')) {
-			$contactMri = 'live:'.$contactMri;
-		}
 		if(null === $contactDisplayname) {
 			$contactDisplayname = $contactMri;
 		}
 		$clientmessageid = round(microtime(true) * 1000);
         $Request = new Endpoint('POST', 'https://%sclient-s.gateway.messenger.live.com/v1/users/ME/conversations/%s/messages');
         $Request->needRegToken();
+		$requestBody = '{"content":"<contacts><c t=\"s\" s=\"'.$contactMri.'\" f=\"'.$contactDisplayname.'\"/></contacts>","messagetype":"RichText/Contacts", "contenttype":"text", "Has-Mentions":"false", "imdisplayname":"'.$fromDisplayname.'", "clientmessageid":"'.$clientmessageid.'"}'; 
         $Response = $this->request($Request, [
 			'debug' => false,
             'format' => [$this->cloud ? $this->cloud : '', $mri],
-			'headers' => ['Content-Type' => 'application/json'],
-			'body' => '{"content":"<contacts><c t=\"s\" s=\"'.htmlspecialchars(addslashes($contactMri), ENT_COMPAT, 'UTF-8').'\" f=\"'.htmlspecialchars(addslashes($contactDisplayname), ENT_COMPAT, 'UTF-8').'\"/></contacts>","messagetype":"RichText/Contacts", "contenttype":"text", "Has-Mentions":"false", "imdisplayname":"'.$fromDisplayname.'", "clientmessageid":"'.$clientmessageid.'"}'	
+			'headers' => ['Content-Type' => 'application/json', 'Content-Length' => strlen($requestBody)],
+			'body' => $requestBody
         ]);
 		return 201 === $Response->getStatusCode() ? $clientmessageid : false;
 	}

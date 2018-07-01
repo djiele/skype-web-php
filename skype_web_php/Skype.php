@@ -589,7 +589,10 @@ class Skype
 		$ret = [];
 		foreach($this->conversations as $ndx => $conversation) {
 			if(isset($conversation->threadProperties)) {
-				$ret[] = $this->transport->threadInfos($conversation->id);
+				$tmp = $this->transport->threadInfos($conversation->id);
+				if(is_object($tmp) && isset($tmp->id)) {
+					$ret[] = $tmp;
+				}
 			}
 		}
 		return $ret;
