@@ -5,17 +5,18 @@ $loader = require 'vendor/autoload.php';
 $loader->setUseIncludePath(__DIR__.'/skype_web_php/');
 $loader->register();
 
-use skype_web_php\SkypeSession;
 use skype_web_php\Skype;
 
-$username = '';
+$username = 'your Skype login name';
+$passwd = 'your password';
 
-
-$skype = new Skype();
-$skype->login($username, getcwd().DIRECTORY_SEPARATOR.'app-data'.DIRECTORY_SEPARATOR);
+$skype = new Skype($username, $passwd, getcwd().DIRECTORY_SEPARATOR.'app-data'.DIRECTORY_SEPARATOR);
+$skype->login() or die('Login failed');
+$skype->enableMessaging(Skype::STATUS_HIDDEN);
 
 $contact_id = $skype->getContact("vomoskal")->id;
 $message_id = $skype->sendMessage("Hello: ".date('Y-m-d H:i:s'), $contact_id);
+sleep(2);
 $skype->editMessage("Hello: ".date('Y-m-d H:i:s'), $contact_id, $message_id);
 
 $skype->onMessage(function ($messages, Skype $skype) {
