@@ -1,9 +1,11 @@
 <?php
 namespace skype_web_php;
+
 require_once dirname(__FILE__).DIRECTORY_SEPARATOR.'json.php';
-use \Curl\Curl;
 
 class SkypeLogin {
+
+	static protected $loginUrl = 'https://login.skype.com/login?client_id=578134&redirect_uri=https%3A%2F%2Fweb.skype.com';
 
 	static public function parseServerData($string) {
 		$srvDataStart = strpos($string, 'ServerData');
@@ -34,26 +36,46 @@ class SkypeLogin {
 	static public function fetchSkypeToken($login, $passwd, $dataPath) {
 		$skypeToken = null;
 		$skypeTokenExpires = null;
-		$curl = new Curl();
-		$curl->setOpt(CURLOPT_FOLLOWLOCATION, true);
-		$curl->setCookieFile($dataPath.'curl/cookie-file.txt');
-		$curl->setCookieJar($dataPath.'curl/cookie.jar');
+		$client = new CurlRequestWrapper($dataPath.DIRECTORY_SEPARATOR.'curl'.DIRECTORY_SEPARATOR);
 
-		$curl->get('https://login.skype.com/login?client_id=578134&redirect_uri=https%3A%2F%2Fweb.skype.com');
-		$response = $curl->response;
+		$tmp = $client->send('GET', self::$loginUrl, ['debug' => false]);
+		$response = $tmp->getBody();
 		$srvData = self::parseServerData($response);
-		$urlPost = $srvData->urlPost;
-		$ppft = $srvData->sFTTag;
-		$ppft = substr($ppft, strpos($ppft,'value="')+7);
-		$ppft = substr($ppft, 0,strpos($ppft, '"'));
-		$ppsx = @$srvData->bF ? $srvData->bF : null;
-		$postData = array('login' => $login, 'passwd' => $passwd, 'PPFT' => $ppft);
-		if(isset($srvData->bF) && !empty($srvData->bF)) {
-			$postData['PPSX'] = $srvData->bF;
+		if(is_object($srvData)) {
+			$urlPost = $srvData->urlPost;
+			$ppft = $srvData->sFTTag;
+			$ppft = substr($ppft, strpos($ppft,'value="')+7);
+			$ppft = substr($ppft, 0,strpos($ppft, '"'));
+			if(isset($srvData->bi) && !empty($srvData->bi)) {
+				$ppftKey = $srvData->bi;
+			} else {
+				$ppftKey = 'PPFT';
+			}
+			$postData = array('login' => $login, 'passwd' => $passwd, $ppftKey => $ppft);
+			if(isset($srvData->bF) && !empty($srvData->bF)) {
+				$postData['PPSX'] = $srvData->bF;
+			} else if(isset($srvData->bl) && !empty($srvData->bl)) {
+				$postData['PPSX'] = $srvData->bl;
+			}
+		} else {
+			$doc =  new \DOMDocument();
+			@$doc->loadHTML($response, LIBXML_NOWARNING | LIBXML_NOERROR);
+			$forms = $doc->getElementsByTagName('form');
+			if(0==$forms->length) {
+				return null;
+			}
+			$urlPost = $forms[0]->getAttribute('action');
+			$postData = array();
+			foreach($forms[0]->childNodes as $input) {
+				if('input' == $input->nodeName) {
+					$postData[$input->getAttribute('name')] = $input->getAttribute('value');
+				}
+			}
+			$doc = null;
 		}
-		
-		$curl->post($urlPost, $postData);
-		$response2 = $curl->response;
+
+		$tmp = $client->send('POST', $urlPost, ['debug' => false, 'form_params' => $postData]);
+		$response2 = $tmp->getBody();
 		$doc =  new \DOMDocument();
 		@$doc->loadHTML($response2, LIBXML_NOWARNING | LIBXML_NOERROR);
 		$forms = $doc->getElementsByTagName('form');
@@ -75,28 +97,10 @@ class SkypeLogin {
 		}
 		$doc = null;
 
-		$curl->post($urlPost, $postData);
-		$response3 = $curl->response;
+		$tmp = $client->send('POST', $urlPost, ['form_params' => $postData]);
+		$response3 = $tmp->getBody();
 		$doc =  new \DOMDocument();
 		@$doc->loadHTML($response3, LIBXML_NOWARNING | LIBXML_NOERROR);
-		$forms = $doc->getElementsByTagName('form');
-		$urlPost = $forms[0]->getAttribute('action');
-		$postData = array();
-		foreach($forms[0]->childNodes as $input) {
-			if('input' == $input->nodeName) {
-				if($input->hasAttribute('value')){
-					$postData[$input->getAttribute('name')] = $input->getAttribute('value');
-				} else {
-					$postData[$input->getAttribute('name')] = '';
-				}
-			}
-		}
-		$doc = null;
-
-		$curl->post($urlPost, $postData);
-		$response4 = $curl->response;
-		$doc =  new \DOMDocument();
-		@$doc->loadHTML($response4, LIBXML_NOWARNING | LIBXML_NOERROR);
 		$forms = $doc->getElementsByTagName('form');
 		$urlPost = $forms[0]->getAttribute('action');
 		$postData = array();
@@ -111,6 +115,31 @@ class SkypeLogin {
 					$postData[$input->getAttribute('name')] = $input->getAttribute('value');
 				} else {
 					$postData[$input->getAttribute('name')] = '';
+				}
+			}
+		}
+		$doc = null;
+
+		if(!$skypeToken) {
+			$tmp = $client->send('POST', $urlPost, ['form_params' => $postData]);
+			$response4 = $tmp->getBody();
+			$doc =  new \DOMDocument();
+			@$doc->loadHTML($response4, LIBXML_NOWARNING | LIBXML_NOERROR);
+			$forms = $doc->getElementsByTagName('form');
+			$urlPost = $forms[0]->getAttribute('action');
+			$postData = array();
+			foreach($forms[0]->childNodes as $input) {
+				if('input' == $input->nodeName) {
+					if($input->hasAttribute('value')){
+						if('skypetoken' == $input->getAttribute('name')) {
+							$skypeToken = $input->getAttribute('value');
+						} else if('expires_in' == $input->getAttribute('name')) {
+							$skypeTokenExpires = $input->getAttribute('value');
+						}
+						$postData[$input->getAttribute('name')] = $input->getAttribute('value');
+					} else {
+						$postData[$input->getAttribute('name')] = '';
+					}
 				}
 			}
 		}

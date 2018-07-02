@@ -5,8 +5,7 @@
     "description": "PHP client for Skype Web API",
     "license": "MIT",
     "require": {
-        "php": ">=5.4.0",
-        "php-curl-class/php-curl-class": "^8.1"
+        "php": ">=5.4.0"
     },
     "autoload": {
         "psr-4": {

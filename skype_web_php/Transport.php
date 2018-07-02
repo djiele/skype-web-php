@@ -86,57 +86,8 @@ class Transport {
 			}
 		}
         static::init();
-
-        //$Stack = new HandlerStack();
-        //$Stack->setHandler(new CurlHandler());
-
-        /**
-         * Здесь ставим ловушку, чтобы с помощью редиректов
-         *   определить адрес сервера, который сможет отсылать сообщения
-         */
-        /*$Stack->push(Middleware::mapResponse(function (ResponseInterface $Response) {
-            $code = $Response->getStatusCode();
-            if (($code >= 301 && $code <= 303) || $code == 307 || $code == 308) {
-                $matches = array();
-				$tmp = $Response->getHeader('Location');
-				$location = array_pop($tmp);
-                preg_match('#https?://([^-]*-)client\-s#', $location, $matches);
-                if (array_key_exists(1, $matches)) {
-					if($matches[1] !== $this->cloud) {
-						$this->cloud = $matches[1];
-					}
-                }
-            }
-            return $Response;
-        }));
-
-        $Stack->push(Middleware::mapResponse(function (ResponseInterface $Response) {
-			$header = $Response->getHeader('X-Correlation-Id');
-			if (count($header) > 0) {
-				$this->webSessionId = $header[0];
-			}
-            //print_r($Response->getHeaders());
-            return $Response;
-        }));
-		*/
-        //$cookieJar = new FileCookieJar('cookie.txt', true);
-
-		/*
-        $this->client = new Client([
-			'curl' => [
-				CURLOPT_SSLENGINE_DEFAULT => true,
-				CURLOPT_SSLVERSION => CURL_SSLVERSION_DEFAULT,
-				CURLOPT_COOKIEJAR => $this->dataPath.DIRECTORY_SEPARATOR.'curl'.DIRECTORY_SEPARATOR.'cookie.jar',
-				CURLOPT_COOKIESESSION => true
-			],
-            'handler' => $Stack,
-            'cookies' => true,
-			'headers' => ['User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; ...) Gecko/20100101 Firefox/60.0']
-        ]);
-		*/
 		
-		
-		$this->client = new CurlRequestWrapper($this->dataPath.DIRECTORY_SEPARATOR.'curl'.DIRECTORY_SEPARATOR.'cookie.jar');
+		$this->client = new CurlRequestWrapper($this->dataPath.DIRECTORY_SEPARATOR.'curl'.DIRECTORY_SEPARATOR);
 		$this->client->registerCallback(function ($Response) {
 					$code = $Response->getStatusCode();
 					if (($code >= 301 && $code <= 303) || $code == 307 || $code == 308) {
