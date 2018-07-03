@@ -113,22 +113,25 @@ class Transport {
 				});
     }
 	
-	private function autoInjectHeadersByHostname($hostname) {
+	private function addHeadersByHostname($hostname) {
 		$ret = [];
+		$ret['Origin'] = 'https://web.skype.com';
+		$ret['Referer'] = 'https://web.skype.com/en/';
+		$ret['Accept-Encoding'] = 'gzip, deflate';
 		if(1==substr_count($hostname, self::DEFAULT_MESSAGES_HOST)) {
+			$ret['Accept'] = 'application/json; ver=1.0';
 			$ret['ClientInfo'] = 'os=Windows; osVer=10; proc=Win64; lcid=en-us; deviceType=1; country=n/a; clientName='.self::CLIENTINFO_NAME.'; clientVer='.self::CLIENT_VERSION;
-			$ret['Accept'] = 'application/json; ver=1.0';
 		} else if(1==substr_count($hostname, self::CONTACTS_HOST) || 1==substr_count($hostname, self::NEW_CONTACTS_HOST) || 1==substr_count($hostname, self::VIDEOMAIL_HOST)) {
-			$ret['X-Stratus-Caller'] = 'skype.com';
-			$ret['X-Stratus-Request'] = substr(uniqid(), -8, 8);
 			$ret['Accept'] = 'application/json; ver=1.0';
+			$ret['X-Skype-Caller'] = 'skype.com';
+			$ret['X-Skype-Request-Id'] = substr(uniqid(), -8, 8);
 		} else if(1==substr_count($hostname, self::GRAPH_HOST)) {
 			$ret['Accept'] = 'application/json';
 		} else if(1==substr_count($hostname, self::DEFAULT_CONTACT_SUGGESTIONS_HOST)) {
+			$ret['Accept'] = 'application/json';
 			$ret['X-RecommenderServiceSettings'] = '{\"experiment\":\"default\",\"recommend\":\"true\"}';
 			$ret['X-ECS-ETag'] = 'skype.com';
 			$ret['X-Skype-Client'] = self::CLIENT_VERSION;
-			$ret['Accept'] = 'application/json';
 		} else {
 			$ret['Accept'] = '*/*';
 		}
@@ -154,39 +157,19 @@ class Transport {
             'regToken'   => $this->regToken,
 			'params' => $params
         ]);
-		$Response = $this->client->send($Request->getMethod(), $Request->getUri(), $Request->getParams());
-		return $Response;
-	}
-    private function __request($endpointName, $params=[]) {
-        if ($endpointName instanceof Endpoint){
-            $Endpoint = $endpointName;
-        } else {
-            $Endpoint = static::$Endpoints[$endpointName];
-        }
-
-		$tmp = $this->autoInjectHeadersByHostname(parse_url($Endpoint->getUri(), PHP_URL_HOST));
-		if(!isset($params['headers'])) {
-			$params['headers'] = [];	
+		$headersCandidates = $this->addHeadersByHostname(parse_url($Request->getUri(),  PHP_URL_HOST));
+		$params = $Request->getParams();
+		if(!array_key_exists('headers', $params)) {
+			$params['headers'] = [];
 		}
-		foreach($tmp as $k => $v) {
-			if(!array_key_exists($k, $params['headers'])) {
-				$params['headers'][$k] = $v;
+		foreach($headersCandidates as $hck => $hcv) {
+			if(!array_key_exists($hck, $params['headers'])) {
+				$params['headers'][$hck] = $hcv;
 			}
 		}
-
-        if (array_key_exists('format', $params)) {
-            $format = $params['format'];
-            unset($params['format']);
-            $Endpoint = $Endpoint->format($format);
-        }
-        $Request = $Endpoint->getRequest([
-            'skypeToken' => $this->skypeToken,
-            'regToken'   => $this->regToken,
-        ]);
-
-        $res = $this->client->send($Request, $params);
-        return $res;
-    }
+		$Response = $this->client->send($Request->getMethod(), $Request->getUri(), $params);
+		return $Response;
+	}
 
     /**
      * Выполнить реквест по имени endpoint из статического массива
@@ -246,7 +229,6 @@ class Transport {
 		return false;
 	}
 
-		
 	public function skypeTokenAuth() {
 		$Response = $this->request('asm', [
 				'debug' => false, 
@@ -286,9 +268,9 @@ class Transport {
 		return $ret;
 	}
 	
-	public function disableMessaging() {
-		if($this->probeCurrentEndpoint(array('url' => $this->endpointUrl, 'key' => $this->regToken))) {
-			$this->unsubscribeToResources();
+	public function disableMessaging($deleteEndpoint=false) {
+		$this->unsubscribeToResources();
+		if(true===$deleteEndpoint && $this->setEndpointFeaturesAgent(array('url' => $this->endpointUrl, 'key' => $this->regToken))) {
 			$this->deleteEndpoint();
 		}
 	}
@@ -542,20 +524,9 @@ class Transport {
 				'debug' => false,
 				'format' => [$mri],
 				'headers' => [
-					'Authority' => 'contacts.skype.com',
-					'Method' => 'DELETE',
-					'Path' => '/contacts/v2/users/'.$this->username.'/contacts/'.$mri,
-					'Scheme' => 'https',
 					'Accept' => 'application/json; ver=1.0',
-					'Accept-Encoding' => 'gzip, deflate',
-					'Accept-Language' => 'fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7',
 					'Content-Type' => 'application/json',
-					'Origin' => 'https://web.skype.com',
-					'Referer' => 'https://web.skype.com/fr/',
-					'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/66.0.3359.170 Safari/537.36 OPR/53.0.2907.99',
-					'Content-Length' => 0,
-					'X-Skype-Caller' => 'skype.com',
-					'X-Skype-Request-Id' => '9f133492'
+					'Content-Length' => 0
 				]
 			]
 		);
@@ -612,15 +583,25 @@ class Transport {
 		$sessionData['regToken']['expires'] = (int)$sessionData['regToken']['expires'];
 		$regTokenExpired = $sessionData['regToken']['expires']<time();
 		
-		if(true===$regTokenExpired || !$this->probeCurrentEndpoint($sessionData['regToken'])) {
-			if(true == $regTokenExpired) {
-				echo 'registration token has expired',PHP_EOL;
+		if(true===$regTokenExpired) {
+			echo 'registration token has expired',PHP_EOL;
+			$fetch = true;
+		} else {
+			if(empty($sessionData['regToken']['url'])) {
+				echo 'session has no endpoint URL', PHP_EOL;
+				$fetch = true;
 			} else {
-				echo 'endpoint probing failed', PHP_EOL;
+				$fetch = !$this->setEndpointFeaturesAgent($sessionData['regToken']);
+				if($fetch) {
+					echo 'session endpoint probing failed', PHP_EOL;
+				}
 			}
+		}
+		if($fetch) {
 			echo 'fetch a new registration token', PHP_EOL;
 			$ts = time();;
 			$Response = $this->request('endpoint', [
+				'debug' => false,
 				'headers' => [
 					'Authentication' => 'skypetoken='.$this->skypeToken,
 					'LockAndKey' => 'appId='.self::LOCKANDKEY_APPID.'; time='.$ts.'; lockAndKeyResponse='.self::getMac256Hash($ts, self::LOCKANDKEY_SECRET)					],
@@ -665,7 +646,7 @@ class Transport {
 		return $ret;
 	}
 	
-	public function probeCurrentEndpoint(array $sessionData) {
+	public function setEndpointFeaturesAgent(array $sessionData) {
 		if(empty($sessionData['url']) || empty($sessionData['key'])) {
 			echo 'empty session data', PHP_EOL;
 			return false;
@@ -722,6 +703,24 @@ class Transport {
 		$ret = json_decode($Response->getBody());
 		return 200 == $Response->getStatusCode() && is_object($ret) && isset($ret->type) ? $ret : null;
 	}
+	
+	public function messagingPostContacts(array $mriList) {
+		if(0==count($mriList)) {
+			return false;
+		}
+		$objectsList = [];
+		while(null !== ($mri = array_shift($mriList))) {
+			$objectsList[] = ['id' => $mri];
+		}
+		$Request = new Endpoint('POST', 'https://%sclient-s.gateway.messenger.live.com/v1/users/ME/contacts');
+		$Request->needRegToken();
+		$Response = $this->request($Request, [
+				'debug' => false, 
+				'format' => [$this->cloud ? $this->cloud : ''],
+				'json' => $objectsList
+			]);
+		return 201 == $Response->getStatusCode();
+	}
 
 	public function loadConversations() {
 		$Request = new Endpoint('GET', 'https://%sclient-s.gateway.messenger.live.com/v1/users/ME/conversations?view=msnp24Equivalent&startTime=0&targetType=Passport|Skype|Lync|Thread|Agent');
@@ -738,16 +737,6 @@ class Transport {
 			}
 			return $json->conversations;
 		} else {
-			if(0 == $Response->getStatusCode()) {
-				sleep(2);
-				$tmp = $this->loadConversations();
-				if(is_array($tmp)) {
-					return $tmp;
-				} else {
-					return false;
-				}
-			}
-			echo $Response->getStatusCode(), ' ', $Response->getBody(), PHP_EOL; 
 			return null;
 		}
 	}

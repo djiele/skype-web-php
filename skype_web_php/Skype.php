@@ -88,10 +88,12 @@ class Skype
 	 *  @param string $status  self::STATUS_ONLINE|self::STATUS_HIDDEN|self::STATUS_BUSY
 	 *  @return boolean
 	 */
-	public function enableMessaging($status) {
+	public function enableMessaging($status=null) {
 		$ret = false;
 		if($this->transport->enableMessaging()) {
-			$this->transport->setStatus($status);
+			if(null !== $status) {
+				$this->transport->setStatus($status);
+			}
 			$this->conversations = $this->transport->loadConversations();
 			$this->threads = $this->loadThreads();
 			return true;
@@ -108,6 +110,7 @@ class Skype
 	public function disableMessaging() {
 		return $this->transport->disableMessaging();
 	}
+	
     /**
      *  @brief should free resources
      *  
@@ -200,9 +203,11 @@ class Skype
 	 *  @param array $data properties to be serialized in JSON format
 	 *  @return boolean
 	 */
-	public function updateProfile(array $data) {
+	public function updateProfile(array $data, $refresh=false) {
 		if(($Result = $this->transport->updateProfile($data))) {
-			$this->profile = $this->transport->loadFullProfile();
+			if(true===$refresh){
+				$this->profile = $this->transport->loadFullProfile();
+			}
 		}
 		return $Result;
 	}
@@ -241,7 +246,7 @@ class Skype
 	/**
 	 *  @brief send authorization request to given user
 	 *  
-	 *  @param [in] $mri target user (MRI)
+	 *  @param string $mri target user (MRI)
 	 *  @return boolean
 	 */	
 	public function sendContactRequest($mri, $greeting='Hello would you please add me to your contact list') {
@@ -291,7 +296,7 @@ class Skype
 	/**
 	 *  @brief add the target user to the block list
 	 *  
-	 *  @param [in] $mri MRI of target user
+	 *  @param string $mri MRI of target user
 	 *  @return boolean
 	 */
 	public function blockContact($mri) {
@@ -306,7 +311,7 @@ class Skype
 	/**
 	 *  @brief remove target user from the block list
 	 *  
-	 *  @param [in] $mri MRI od target user
+	 *  @param string $mri MRI od target user
 	 *  @return boolean
 	 */
 	public function unblockContact($mri) {
@@ -410,6 +415,19 @@ class Skype
 	public function getStatus(){
 		$tmp = $this->messagingGetMyPresenceDocs();
 		return is_object($tmp) && isset($tmp->status) ? $tmp->status : 'undefined';
+	}
+	
+	/**
+	 *  @brief undocumented method
+	 *  
+	 *  @param array $mriList the list of MRIs to post
+	 *  @return boolean
+	 */
+	public function messagingPostContacts(array $mriList) {
+		foreach($mriList as $ndx => $mri) {
+			$mriList[$ndx] = $this->usernameToMri($mri);
+		}
+		return $this->transport->messagingPostContacts($mriList);
 	}
 	
 	/**
@@ -587,11 +605,13 @@ class Skype
 	 */
 	public function loadThreads() {
 		$ret = [];
-		foreach($this->conversations as $ndx => $conversation) {
-			if(isset($conversation->threadProperties)) {
-				$tmp = $this->transport->threadInfos($conversation->id);
-				if(is_object($tmp) && isset($tmp->id)) {
-					$ret[] = $tmp;
+		if(is_array($this->conversations) && 0<count($this->conversations)) {
+			foreach($this->conversations as $ndx => $conversation) {
+				if(isset($conversation->threadProperties)) {
+					$tmp = $this->transport->threadInfos($conversation->id);
+					if(is_object($tmp) && isset($tmp->id)) {
+						$ret[] = $tmp;
+					}
 				}
 			}
 		}
