@@ -9,6 +9,7 @@ class CurlRequestWrapper {
 	protected $callbacks;
 	
 	protected $baseOptions = [
+		CURLOPT_ENCODING => '',
 		CURLOPT_TIMEOUT => 10,
 		CURLOPT_USERAGENT => 'Mozilla/5.0 (Windows NT 10.0; ...) Gecko/20100101 Firefox/60.0',
 		CURLOPT_COOKIESESSION => false,
