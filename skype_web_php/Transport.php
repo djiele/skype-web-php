@@ -1,10 +1,19 @@
 <?php
+/**
+ *  @file Transport.php
+ *  @brief Skype API calls
+ */
 namespace skype_web_php;
 
 use Exception;
 use DOMDocument;
 use DOMXPath;
 
+/**
+ * Class Transport
+ *
+ * @package skype_web_php
+ */
 class Transport {
 
 	const CLIENTINFO_NAME = 'skype.com';
@@ -23,14 +32,14 @@ class Transport {
 	const STATIC_CDN_HOST = 'static-asm.secure.skypeassets.com';
 	const DEFAULT_CONTACT_SUGGESTIONS_HOST = 'peoplerecommendations.skype.com';
 
-    /**
-     * @var Client
-     */
 	private $webSessionId;
 	private $loginName;
 	private $password;
 	private $username;
 	private $dataPath;
+    /**
+     * @var Client
+     */
     private $client;
     private $skypeToken;
 	private $skypeTokenExpires;
@@ -43,10 +52,15 @@ class Transport {
     private $cloud;
 
     /**
-     * @var Endpoint []
+     * @var Endpoints []
      */
     private static $Endpoints = null;
 
+    /**
+     *  @brief init of named endpoints
+     *  
+     *  @return void
+     */
     private static function init() {
         if (static::$Endpoints) {
             return;
@@ -73,6 +87,14 @@ class Transport {
         ];
     }
 
+    /**
+     *  @brief constructor
+     *  
+     *  @param string $username skype login
+     *  @param string $password Skype password
+     *  @param string $dataPath absolute path to the directory where will be saved sessions files
+     *  @return void
+     */
     public function __construct($username, $password, $dataPath) {
 		$this->username = $this->loginName = $username;
 		$this->password = $password;
@@ -112,8 +134,14 @@ class Transport {
 					return $Response;
 				});
     }
-	
-	private function addHeadersByHostname($hostname) {
+
+	/**
+	 *  @brief get predefined headers according to target hostname
+	 *  
+	 *  @param string $hostname target server hostname
+	 *  @return return an array of predefined headers
+	 */
+	private function headersByhostname($hostname) {
 		$ret = [];
 		$ret['Origin'] = 'https://web.skype.com';
 		$ret['Referer'] = 'https://web.skype.com/en/';
@@ -138,13 +166,13 @@ class Transport {
 		return $ret;
 	}
 
-    /**
-     * Выполнить реквест по имени endpoint из статического массива
-     *
-     * @param string $endpointName
-     * @param array $params
-     * @return ResponseInterface
-     */
+	/**
+	 *  @brief send request to the REST server
+	 *  
+	 *  @param mixed $endpointName a named endpoint or an instance of Endpoint
+	 *  @param array $params an array of parameters to pass to the client
+	 *  @return Object an instance of CurlResponseWrapper
+	 */
 	function request($endpointName, $params=[]) {
 		
         if ($endpointName instanceof Endpoint){
@@ -157,7 +185,7 @@ class Transport {
             'regToken'   => $this->regToken,
 			'params' => $params
         ]);
-		$headersCandidates = $this->addHeadersByHostname(parse_url($Request->getUri(),  PHP_URL_HOST));
+		$headersCandidates = $this->headersByhostname(parse_url($Request->getUri(),  PHP_URL_HOST));
 		$params = $Request->getParams();
 		if(!array_key_exists('headers', $params)) {
 			$params['headers'] = [];
@@ -172,12 +200,11 @@ class Transport {
 	}
 
     /**
-     * Выполнить реквест по имени endpoint из статического массива
-     * и вернуть DOMDocument построенный на body ответа
-     *
-     * @param string $endpointName
-     * @param array $params
-     * @return DOMDocument
+     *  @brief get a DOM document out of a response
+     *  
+     *  @param mixed $endpointName a named endpoint or an instance of Endpoint
+     *  @param array $params an array of parameters to pass to the client
+     *  @return DOMDocument
      */
     private function requestDOM($endpointName, $params=[]) {
         libxml_use_internal_errors(true);
@@ -190,22 +217,20 @@ class Transport {
     }
 
     /**
-     * Выполнить реквест по имени endpoint из статического массива
-     * и преобразовать JSON-ответ в array
-     * @param string $endpointName
-     * @param array $params
-     * @return array
+     *  @brief get a JSON structure out of a response
+     *  
+     *  @param mixed $endpointName a named endpoint or an instance of Endpoint
+     *  @param array $params an array of parameters to pass to the client
+     *  @return json decoded response
      */
     private function requestJSON($endpointName, $params=[]) {
         return json_decode($this->request($endpointName, $params)->getBody());
     }
 
     /**
-     * Выполняем запрос для входа, ловим из ответа skypeToken
-     * Проверяем не спросили ли у нас капчу и не возникло ли другой ошибки
-     * Если всё плохо, то бросим исключение, иначе вернём true
-     * @return bool
-     * @throws Exception
+     *  @brief load the session skypetoken or fetch a new one
+     *  
+     *  @return boolean
      */
     public function login() {
 		$tmp = SkypeLogin::getSkypeToken($this->loginName, $this->password, $this->dataPath);
@@ -218,7 +243,12 @@ class Transport {
 			return false;
 		}
     }
-	
+
+	/**
+	 *  @brief undocument function
+	 *  
+	 *  @return boolean
+	 */
 	public function pingWebHost() {
 		if(!empty($this->webSessionId)) {
 			$Request = new Endpoint('POST', 'https://web.skype.com/api/v1/session-ping');
@@ -229,6 +259,11 @@ class Transport {
 		return false;
 	}
 
+	/**
+	 *  @brief set authentication for ASM servers
+	 *  
+	 *  @return boolean
+	 */
 	public function skypeTokenAuth() {
 		$Response = $this->request('asm', [
 				'debug' => false, 
@@ -237,7 +272,12 @@ class Transport {
 			]);
 		return 204 == $Response->getStatusCode();
 	}
-	
+
+	/**
+	 *  @brief undocumented function
+	 *  
+	 *  @return object token data
+	 */
 	public function getPeToken() {
 		$Request = new Endpoint('GET', 'https://static.asm.skype.com/pes/v1/petoken');
 		$Result = $this->request($Request, ['debug' => false, 'headers' => ['Authorization' => 'skype_token '.$this->skypeToken]]);
@@ -246,15 +286,21 @@ class Transport {
 	}
 	
     /**
-     * Выход
-     * @return bool
+     *  @brief sign out
+     *  
+     *  @return always true
      */
     public function logout() {
 		echo 'logging out', PHP_EOL;
 		$this->request('logout');
         return true;
     }
-	
+
+	/**
+	 *  @brief init the messaging environment (endpoint, presenceDoc, subscriptions, ...)
+	 *  
+	 *  @return boolean
+	 */
 	public function enableMessaging() {
 		$ret = false;
 		if($this->setRegistrationToken()) {
@@ -267,7 +313,13 @@ class Transport {
 		}
 		return $ret;
 	}
-	
+
+	/**
+	 *  @brief free messaging resources
+	 *  
+	 *  @param boolean $deleteEndpoint endpoint can be saved for next session
+	 *  @return void
+	 */
 	public function disableMessaging($deleteEndpoint=false) {
 		$this->unsubscribeToResources();
 		if(true===$deleteEndpoint && $this->setEndpointFeaturesAgent(array('url' => $this->endpointUrl, 'key' => $this->regToken))) {
@@ -275,6 +327,11 @@ class Transport {
 		}
 	}
 
+    /**
+     *  @brief subscribe to messaging endpoints
+     *  
+     *  @return the URL of the created endpoint of false on error
+     */
     public function subscribeToResources()
     {
         $Request = new Endpoint('POST', 'https://%sclient-s.gateway.messenger.live.com/v1/users/ME/endpoints/SELF/subscriptions');
@@ -300,7 +357,12 @@ class Transport {
 			return false;
 		}
     }
-	
+
+	/**
+	 *  @brief free the subscriptions endpoint
+	 *  
+	 *  @return boolean
+	 */
 	public function unsubscribeToResources() {
 		if($this->endpointSubscriptionsUrl) {
 			$Request = new Endpoint('DELETE', $this->endpointSubscriptionsUrl);
@@ -311,6 +373,11 @@ class Transport {
 		return true;
 	}
 
+    /**
+     *  @brief create a new presenceDoc endpoint
+     *  
+     *  @return URL of the created endpoint of false on error
+     */
     public function createStatusEndpoint()
     {
         $Request = new Endpoint('PUT', 'https://%sclient-s.gateway.messenger.live.com/v1/users/ME/endpoints/SELF/presenceDocs/messagingService');
@@ -341,7 +408,13 @@ class Transport {
 			return false;
 		}
     }
-	
+
+	/**
+	 *  @brief free the main messaging endpoint
+	 *  
+	 *  @param int $expiresTreshold expiry treshold
+	 *  @return boolean
+	 */
 	public function deleteEndpoint($expiresTreshold=60) {
 		if($this->endpointUrl)  {
 			$Request = new Endpoint('DELETE', $this->endpointUrl);
@@ -372,20 +445,31 @@ class Transport {
 		}
 	}
 
+    /**
+     *  @brief set user status
+     *  
+     *  @param string $status a string amongst Online, Busy, Hidden
+     *  @return boolean
+     */
     public function setStatus($status)
     {
         $Request = new Endpoint('PUT', 'https://%sclient-s.gateway.messenger.live.com/v1/users/ME/presenceDocs/messagingService');
         $Request->needRegToken();
 
-        $this->request($Request, [
+        $Response = $this->request($Request, [
 			'format' => [$this->cloud ? $this->cloud : ''],
             'json' => [
                 'status' => $status
             ]
         ]);
+		return 200 == $Response->getStatusCode(); 
     }
 
-	
+    /**
+     *  @brief get the short version of current user's profile
+     *  
+     *  @return mixed a JSON value or null if error
+     */
     public function loadProfile()
     {
         $Request = new Endpoint('GET', 'https://api.skype.com/users/self/displayname');
@@ -395,7 +479,12 @@ class Transport {
 
         return isset($Response->username) ? $Response : null;
     }
-	
+
+	/**
+	 *  @brief get detialed version of current user's profile
+	 *  
+	 *  @return mixed a JSON value or null if error
+	 */
 	public function loadFullProfile() {
         $Request = new Endpoint('GET', 'https://api.skype.com/users/self/profile');
         $Request->needSkypeToken();
@@ -404,8 +493,14 @@ class Transport {
 
         return isset($Response->firstname) ? $Response : null;
 	}
-	
-	public function updateProfile($data) {
+
+	/**
+	 *  @brief update current user's profile
+	 *  
+	 *  @param array $data key, values pairs of fields to update
+	 *  @return boolean
+	 */
+	public function updateProfile(array $data) {
 		$Request = new Endpoint('POST', 'https://api.skype.com/users/self/profile/partial');
 		$Request->needSkypeToken();
 		$Result = $this->request($Request, [
@@ -413,7 +508,13 @@ class Transport {
             ]);
         return 200 == $Result->getStatusCode();
 	}
-	
+
+	/**
+	 *  @brief update the current user's avatar
+	 *  
+	 *  @param string $filename filename
+	 *  @return boolean
+	 */
 	public function updateAvatar($filename) {
 		$Request = new Endpoint('PUT', 'https://avatar.skype.com/v1/avatars/%s');
 		$Request->needSkypeToken();
@@ -431,7 +532,15 @@ class Transport {
             ]);
         return 200==$Result->getStatusCode();
 	}
-	
+
+	/**
+	 *  @brief download an avatar image
+	 *  
+	 *  @param string $url URL of image
+	 *  @param string $targetDir the directory where the file should be written
+	 *  @param string $basename optional. force name of downloaded file 
+	 *  @return mixed path to the newly created file
+	 */
 	public function downloadAvatar($url, $targetDir, $basename=null) {
 		$Request = new Endpoint('GET', $url);
 		$Result = $this->request($Request, ['debug' => false]);
@@ -464,15 +573,20 @@ class Transport {
 	}
 	
     /**
-     * Скачиваем список всех контактов и информацию о них для залогиненного юзера
-     * @param $username
-     * @return null
+     *  @brief get the detailed list of current user's contacts
+     *  
+     *  @return mixed a JSON value (array) or null if error
      */
     public function loadContacts() {
         $Response = $this->requestJSON('contacts');
         return isset($Response->contacts) ? $Response->contacts : null;
     }
 
+	/**
+	 *  @brief get the list of current user defined groups
+	 *  
+	 *  @return mixed a JSON value (array) or null if error
+	 */
 	public function loadGroups() {
 		$Request = new Endpoint('GET', 'https://contacts.skype.com/contacts/v2/users/self/groups');
 		$Request->needSkypeToken();
@@ -480,6 +594,23 @@ class Transport {
 		return isset($Response->groups) ? $Response->groups : null;
 	}
 	
+	/**
+	 *  @brief get the list of current user block list
+	 *  
+	 *  @return mixed a JSON value (array) or null if error
+	 */
+	public function getBlockList() {
+		$Request = new Endpoint('GET', 'https://contacts.skype.com/contacts/v2/users/self/blocklist');
+		$Request->needSkypeToken();
+		$Result = $this->requestJSON($Request);
+		return isset($Result->blocklist) ? $Result->blocklist : null;
+	}
+	
+	/**
+	 *  @brief load contacts, groups, blocklist in a single request 
+	 *  
+	 *  @return mixed a JSON value or null if error
+	 */
 	public function initLoadContacts() {
 		$Request = new Endpoint('GET', 'https://contacts.skype.com/contacts/v2/users/self');
 		$Request->needSkypeToken();
@@ -487,14 +618,13 @@ class Transport {
 		$ret = json_decode($Result->getBody());
 		return 200 == $Result->getStatusCode() && is_object($ret) && isset($ret->contacts) ? $ret : null;
 	}
-	
-	public function sendContactRequest($mri, $greeting) {
-		$Request = new Endpoint('POST', 'https://contacts.skype.com/contacts/v2/users/self/contacts');
-		$Request->needSkypeToken();
-		$Result = $this->request($Request, ['debug' => false, 'json' => ['mri' => $mri, 'greeting' => $greeting]]);
-		return 200 == $Result->getStatusCode() ? true : false;
-	}
-	
+
+	/**
+	 *  @brief search a user in Skype directory
+	 *  
+	 *  @param string $searchstring lookup string
+	 *  @return mixed a JSON value or null if error
+	 */
 	public function searchUserDirectory($searchstring) {
 		$Request = new Endpoint('GET', 'https://skypegraph.skype.com/search/v1.1/namesearch/swx/?searchstring=%s&requestId=%s');
 		$Request->needSkypeToken();
@@ -503,20 +633,81 @@ class Transport {
 		return 200 == $Response->getStatusCode() && is_object($ret) && isset($ret->results) ? $ret->results : null;
 	}
 	
+	/**
+	 *  @brief send an authorization request to a user
+	 *  
+	 *  @param string $mri target user as MRI
+	 *  @param string $greeting custom text
+	 *  @return boolean
+	 */
+	public function sendContactRequest($mri, $greeting) {
+		$Request = new Endpoint('POST', 'https://contacts.skype.com/contacts/v2/users/self/contacts');
+		$Request->needSkypeToken();
+		$Result = $this->request($Request, ['debug' => false, 'json' => ['mri' => $mri, 'greeting' => $greeting]]);
+		return 200 == $Result->getStatusCode() ? true : false;
+	}
+
+	/**
+	 *  @brief get the list of pending authorization requests
+	 *  
+	 *  @return mixed a JSON value or null on error
+	 */
 	public function getInvites() {
 		$Request = new Endpoint('GET', 'https://contacts.skype.com/contacts/v2/users/self/invites');
 		$Request->needSkypeToken();
 		$Result = $this->requestJson($Request, ['debug' => false]);
-		return $Result;
+		return is_object($Result)||is_array($Result) ? $Result : null;
 	}
-	
+
+	/**
+	 *  @brief accept or decline a pending authorization request
+	 *  
+	 *  @param string $mri the user emitting the request (as a MRI)
+	 *  @param string $action a value in [accept, decline]
+	 *  @return boolean
+	 */
 	public function acceptOrDeclineInvite($mri, $action) {
+		if(!in_array($action, ['decline', 'accept'])) {
+			return false;
+		}
 		$Request = new Endpoint('PUT', 'https://contacts.skype.com/contacts/v2/users/self/invites/%s/%s');
 		$Request->needSkypeToken();
 		$Result = $this->request($Request, ['debug' => false, 'format' => [$mri, $action]]);
 		return 200==$Result->getStatusCode() ? true : false;
 	}
+
+	/**
+	 *  @brief add a user to the blocklist
+	 *  
+	 *  @param string $mri target user (as an MRI)
+	 *  @return boolean
+	 */
+	public function blockContact($mri) {
+		$Request = new Endpoint('PUT', 'https://contacts.skype.com/contacts/v2/users/self/contacts/blocklist/%s');
+		$Request->needSkypeToken();
+		$Result = $this->request($Request, ['debug' => false, 'format' => [$mri], 'json' => ['ui_version' => self::CLIENTINFO_NAME, 'report_abuse' => false]]);
+		return 200 == $Result->getStatusCode();
+	}
+
+	/**
+	 *  @brief remove a user from the blocklist
+	 *  
+	 *  @param string $mri target user (as an MRI)
+	 *  @return boolean
+	 */
+	public function unblockContact($mri) {
+		$Request = new Endpoint('DELETE', 'https://contacts.skype.com/contacts/v2/users/self/contacts/blocklist/%s');
+		$Request->needSkypeToken();
+		$Result = $this->request($Request, ['debug' => false, 'format' => [$mri]]);
+		return 200 == $Result->getStatusCode();
+	}
 	
+	/**
+	 *  @brief remove authorization for a user
+	 *  
+	 *  @param string $mri target user (as an MRI)
+	 *  @return boolean
+	 */
 	public function deleteContact($mri) {
 		$Request = new Endpoint('DELETE', 'https://contacts.skype.com/contacts/v2/users/self/contacts/%s');
 		$Request->needSkypeToken();
@@ -532,45 +723,13 @@ class Transport {
 		);
 		return 200==$Result->getStatusCode() ? true : false;
 	}
-	
-	public function blockContact($mri) {
-		$Request = new Endpoint('PUT', 'https://contacts.skype.com/contacts/v2/users/self/contacts/blocklist/%s');
-		$Request->needSkypeToken();
-		$Result = $this->request($Request, ['debug' => false, 'format' => [$mri], 'json' => ['ui_version' => self::CLIENTINFO_NAME, 'report_abuse' => false]]);
-		return 200 == $Result->getStatusCode();
-	}
-	
-	public function unblockContact($mri) {
-		$Request = new Endpoint('DELETE', 'https://contacts.skype.com/contacts/v2/users/self/contacts/blocklist/%s');
-		$Request->needSkypeToken();
-		$Result = $this->request($Request, ['debug' => false, 'format' => [$mri]]);
-		return 200 == $Result->getStatusCode();
-	}
-	
-	public function getBlockList() {
-		$Request = new Endpoint('GET', 'https://contacts.skype.com/contacts/v2/users/self/blocklist');
-		$Request->needSkypeToken();
-		$Result = $this->requestJSON($Request);
-		return isset($Result->blocklist) ? $Result->blocklist : null;
-	}
-	
-    /**
-     * Скачиваем информацию о конкретном контакте, только если его нет в кеше
-     * @param $username
-     * @return array
-     */
-    public function loadContact($username) {
-        $Request = new Endpoint('POST', 'https://api.skype.com/users/self/contacts/profiles');
-        $Request->needSkypeToken();
 
-        $Result = $this->requestJSON($Request, [
-            'form_params' => [
-                'contacts' => [$username]
-            ]
-        ]);
-        return $Result;
-    }
-	
+	/**
+	 *  @brief use registration token and endpoint from session or fetch a new one
+	 *  
+	 *  @param int $expiresTreshold expiry treshold
+	 *  @return mixed boolean or new endpoint URL
+	 */
 	public function setRegistrationToken($expiresTreshold=60) {
 		$ret = false;
 		$sessionData = json_decode(file_get_contents($this->dataPath.$this->loginName.'-session.json'), true);
@@ -645,7 +804,13 @@ class Transport {
 		}
 		return $ret;
 	}
-	
+
+	/**
+	 *  @brief set agent attribute to currentenpoint (also used to probe endpoint)
+	 *  
+	 *  @param array $sessionData an array containing endpoint URL and registration token
+	 *  @return boolean
+	 */
 	public function setEndpointFeaturesAgent(array $sessionData) {
 		if(empty($sessionData['url']) || empty($sessionData['key'])) {
 			echo 'empty session data', PHP_EOL;
@@ -668,14 +833,25 @@ class Transport {
 			return $ret;
 		}
 	}
-	
+
+	/**
+	 *  @brief set agent attribute to currentenpoint (also used to probe endpoint)
+	 *  
+	 *  @param array $sessionData an array containing endpoint URL and registration token
+	 *  @return boolean
+	 */
 	public function endpointSetSupportMessageProperties() {
 		$Request = new Endpoint('PUT', 'https://%sclient-s.gateway.messenger.live.com/v1/users/ME/endpoints/SELF/properties?name=supportsMessageProperties');
 		$Request->needRegToken();
 		$Response = $this->request($Request, ['debug' => false, 'format' => [$this->cloud ? $this->cloud : ''], 'json' => ['supportsMessageProperties' => true]]);
 		return 200 == $Response->getStatusCode();
 	}
-	
+
+	/**
+	 *  @brief self explanatory
+	 *  
+	 *  @return boolean
+	 */
 	public function pingGateway() {
 		$Request = new Endpoint('GET', 'https://%sclient-s.gateway.messenger.live.com/v1/ng/ping');
 		$Response = $this->request($Request, [
@@ -688,6 +864,11 @@ class Transport {
 		return 200 == $Response->getStatusCode();
 	}
 	
+	/**
+	 *  @brief get user properties in the current messaging context
+	 *  
+	 *  @return mixed a JSON value or null if error
+	 */
 	public function messagingGetMyProperties() {
 		$Request = new Endpoint('GET', 'https://%sclient-s.gateway.messenger.live.com/v1/users/ME/properties');
 		$Request->needRegToken();
@@ -695,7 +876,12 @@ class Transport {
 		$ret = json_decode($Response->getBody());
 		return 200 == $Response->getStatusCode() && is_object($ret) && isset($ret->lastActivityAt) ? $ret : null;
 	}
-	
+
+	/**
+	 *  @brief list of connected endpoints and availability
+	 *  
+	 *  @return mixed a JSON value or null if error
+	 */
 	public function messagingGetMyPresenceDocs() {
 		$Request = new Endpoint('GET', 'https://%sclient-s.gateway.messenger.live.com/v1/users/ME/presenceDocs/messagingService?view=expanded');
 		$Request->needRegToken();
@@ -704,6 +890,12 @@ class Transport {
 		return 200 == $Response->getStatusCode() && is_object($ret) && isset($ret->type) ? $ret : null;
 	}
 	
+	/**
+	 *  @brief undocumented feature
+	 *  
+	 *  @param array $mriList list of target users (as MRIs)
+	 *  @return boolean
+	 */
 	public function messagingPostContacts(array $mriList) {
 		if(0==count($mriList)) {
 			return false;
@@ -722,6 +914,11 @@ class Transport {
 		return 201 == $Response->getStatusCode();
 	}
 
+	/**
+	 *  @brief get the list of current user's conversations
+	 *  
+	 *  @return mixed a JSON value or null if error
+	 */
 	public function loadConversations() {
 		$Request = new Endpoint('GET', 'https://%sclient-s.gateway.messenger.live.com/v1/users/ME/conversations?view=msnp24Equivalent&startTime=0&targetType=Passport|Skype|Lync|Thread|Agent');
 		$Request->needRegToken();
@@ -741,6 +938,12 @@ class Transport {
 		}
 	}
 	
+	/**
+	 *  @brief set conversation as empty
+	 *  
+	 *  @param string $mri target user (as MRI)
+	 *  @return boolean
+	 */
 	public function deleteConversation($mri) {
         $Request = new Endpoint('DELETE', 'https://%sclient-s.gateway.messenger.live.com/v1/users/ME/conversations/%s/messages');
         $Request->needRegToken();
@@ -751,6 +954,15 @@ class Transport {
 		return 200 == $Response->getStatusCode() ? true : false;
 	}
 	
+    /**
+     *  @brief send a text/richText message
+     *  
+     *  @param string $mri target user (as MRI)
+     *  @param string $userDisplayname target user display name
+     *  @param string $text message content
+     *  @param int $edit_id Id of message in case of message edition
+     *  @return mixed Id of message sent or edited
+     */
     public function send($mri, $userDisplayname, $text, $edit_id = false) {
         $milliseconds = round(microtime(true) * 1000);
 		if(false === strpos($mri, ':')) {
@@ -782,7 +994,41 @@ class Transport {
             return false;
         }
     }
-	
+
+	/**
+	 *  @brief send a contact card to a user
+	 *  
+	 *  @param [in] $mri target user (as MRI)
+	 *  @param [in] $fromDisplayname display name of the sender
+	 *  @param [in] $contactMri MRI of card contact
+	 *  @param [in] $contactDisplayname display name of card contact
+	 *  @return mixed id of the sent message or false if error
+	 */
+	public function sendContact($mri, $fromDisplayname, $contactMri, $contactDisplayname=null) {
+		if(null === $contactDisplayname) {
+			$contactDisplayname = $contactMri;
+		}
+		$clientmessageid = round(microtime(true) * 1000);
+        $Request = new Endpoint('POST', 'https://%sclient-s.gateway.messenger.live.com/v1/users/ME/conversations/%s/messages');
+        $Request->needRegToken();
+		$requestBody = '{"content":"<contacts><c t=\"s\" s=\"'.$contactMri.'\" f=\"'.$contactDisplayname.'\"/></contacts>","messagetype":"RichText/Contacts", "contenttype":"text", "Has-Mentions":"false", "imdisplayname":"'.$fromDisplayname.'", "clientmessageid":"'.$clientmessageid.'"}'; 
+        $Response = $this->request($Request, [
+			'debug' => false,
+            'format' => [$this->cloud ? $this->cloud : '', $mri],
+			'headers' => ['Content-Type' => 'application/json', 'Content-Length' => strlen($requestBody)],
+			'body' => $requestBody
+        ]);
+		return 201 === $Response->getStatusCode() ? $clientmessageid : false;
+	}
+
+	/**
+	 *  @brief share an image with a list of users
+	 *  
+	 *  @param array $mrisWithAccessRights a list of MRIs with permissions (ex: [[joe.bloggs => ['read']], ['john.doe' => ['read']]])
+	 *  @param [in] $filename local path to the file to share
+	 *  @param [in] $fromDisplayname display name of the sender
+	 *  @return mixed array of upload infos or false if error
+	 */
 	public function sendImage($mrisWithAccessRights, $filename, $fromDisplayname) {
 		$ret = false;
 		if(is_file($filename) && is_readable($filename)) {
@@ -877,7 +1123,15 @@ class Transport {
 		}
 		return $ret;
 	}
-	
+
+	/**
+	 *  @brief share a file with a list of users
+	 *  
+	 *  @param array $mrisWithAccessRights a list of MRIs with permissions (ex: [[joe.bloggs => ['read']], ['john.doe' => ['read']]])
+	 *  @param [in] $filename local path to the file to share
+	 *  @param [in] $fromDisplayname display name of the sender
+	 *  @return mixed array of upload infos or false if error
+	 */
 	public function sendFile($mrisWithAccessRights, $filename, $fromDisplayname) {
 		$ret = false;
 		if(is_file($filename) && is_readable($filename)) {
@@ -975,23 +1229,11 @@ class Transport {
 		return $ret;
 	}
 	
-	public function sendContact($mri, $fromDisplayname, $contactMri, $contactDisplayname=null) {
-		if(null === $contactDisplayname) {
-			$contactDisplayname = $contactMri;
-		}
-		$clientmessageid = round(microtime(true) * 1000);
-        $Request = new Endpoint('POST', 'https://%sclient-s.gateway.messenger.live.com/v1/users/ME/conversations/%s/messages');
-        $Request->needRegToken();
-		$requestBody = '{"content":"<contacts><c t=\"s\" s=\"'.$contactMri.'\" f=\"'.$contactDisplayname.'\"/></contacts>","messagetype":"RichText/Contacts", "contenttype":"text", "Has-Mentions":"false", "imdisplayname":"'.$fromDisplayname.'", "clientmessageid":"'.$clientmessageid.'"}'; 
-        $Response = $this->request($Request, [
-			'debug' => false,
-            'format' => [$this->cloud ? $this->cloud : '', $mri],
-			'headers' => ['Content-Type' => 'application/json', 'Content-Length' => strlen($requestBody)],
-			'body' => $requestBody
-        ]);
-		return 201 === $Response->getStatusCode() ? $clientmessageid : false;
-	}
-	
+    /**
+     *  @brief get new messages according to subscriptions previously registered
+     *  
+     *  @return mixed a JSON value or null if error
+     */
     public function getNewMessages(){
         $Request = new Endpoint('POST', 'https://%sclient-s.gateway.messenger.live.com/v1/users/ME/endpoints/SELF/subscriptions/0/poll');
         $Request->needRegToken();
@@ -1000,16 +1242,13 @@ class Transport {
         ]);
         return isset($Response->eventMessages) ? $Response->eventMessages : null;
     }
-	
-	public function threadInfos($id) {
-        $Request = new Endpoint('GET', 'https://%sclient-s.gateway.messenger.live.com/v1/threads/%s?view=msnp24Equivalent');
-        $Request->needRegToken();
-        $Response = $this->requestJson($Request, [
-            'format' => [$this->cloud ? $this->cloud : '', $id]
-        ]);
-		return isset($Response->id) ? $Response : null;
-	}
-	
+
+	/**
+	 *  @brief initiate a new thread
+	 *  
+	 *  @param array $members members with roles in the new thread (ex: [[id=>joe.bloggs, role=>User],[john.doe=>Admin]])
+	 *  @return mixed url of the new thread or false if error
+	 */
 	public function initiateThread(array $members) {
         $Request = new Endpoint('POST', 'https://%sclient-s.gateway.messenger.live.com/v1/threads');
         $Request->needRegToken();
@@ -1026,6 +1265,29 @@ class Transport {
 		}
 	}
 	
+	/**
+	 *  @brief get infos on the selected thread
+	 *  
+	 *  @param string $id thread ID (as MRI)
+	 *  @return mixed a JSON value or null if error
+	 */
+	public function threadInfos($id) {
+        $Request = new Endpoint('GET', 'https://%sclient-s.gateway.messenger.live.com/v1/threads/%s?view=msnp24Equivalent');
+        $Request->needRegToken();
+        $Response = $this->requestJson($Request, [
+            'format' => [$this->cloud ? $this->cloud : '', $id]
+        ]);
+		return isset($Response->id) ? $Response : null;
+	}
+
+	/**
+	 *  @brief set the avatar of the selected thread
+	 *  
+	 *  @param string $id thread ID (as MRI)
+	 *  @param array $perms permissions like [read]
+	 *  @param string $filename local path of file to upload
+	 *  @return mixed a JSON value or false if error
+	 */
 	public function setThreadAvatar($id, array $perms, $filename) {
 		$ret = false;
 		if(is_file($filename) && is_readable($filename)) {
@@ -1115,7 +1377,15 @@ class Transport {
 		}
 		return $ret;
 	}
-	
+
+	/**
+	 *  @brief add a member or edit role if member exists
+	 *  
+	 *  @param string $id MRI of selected thread
+	 *  @param string $addId MRI of the target user
+	 *  @param string $role a value in [User, Admin]
+	 *  @return boolean
+	 */
 	public function addOrEditThreadMember($id, $addId, $role) {
         $Request = new Endpoint('PUT', 'https://%sclient-s.gateway.messenger.live.com/v1/threads/%s/members/%s');
         $Request->needRegToken();
@@ -1126,6 +1396,13 @@ class Transport {
 		return 200 == $Response->getStatusCode();
 	}
 	
+	/**
+	 *  @brief kick a member in selected thread
+	 *  
+	 *  @param [in] $id MRI of the selected thread
+	 *  @param [in] $rmId MRI of the target user
+	 *  @return boolean
+	 */
 	public function removeThreadMember($id, $rmId) {
         $Request = new Endpoint('DELETE', 'https://%sclient-s.gateway.messenger.live.com/v1/threads/%s/members/%s');
         $Request->needRegToken();
@@ -1134,7 +1411,15 @@ class Transport {
         ]);
 		return 200 == $Response->getStatusCode();
 	}
-	
+
+	/**
+	 *  @brief set a thread property in [joiningenabled, historydisclosed, topic]
+	 *  
+	 *  @param string $id MRI of selected thread
+	 *  @param string $key property name
+	 *  @param boolean $value property value
+	 *  @return boolean
+	 */
 	public function setThreadProperty($id, $key, $value) {
 		if(!in_array($key, ['joiningenabled', 'historydisclosed', 'topic'])) {
 			echo 'property [', $key, '] not found', PHP_EOL;
@@ -1147,7 +1432,13 @@ class Transport {
         ]);
 		return 200 == $Response->getStatusCode();
 	}
-	
+
+	/**
+	 *  @brief set conversation as empty
+	 *  
+	 *  @param string $id MRI of selected thread
+	 *  @return boolean
+	 */
 	public function deleteThread($id) {
 		$Request = new Endpoint('DELETE', 'https://%sclient-s.gateway.messenger.live.com/v1/users/ME/conversations/%s/messages');
 		$Request->needRegToken();
@@ -1169,7 +1460,12 @@ class Transport {
 		return 200 == $Response->getStatusCode();
 	}
 
-	
+	/**
+	 *  @brief convert an integer to hexadecimal
+	 *  
+	 *  @param integer $n the integer to convert
+	 *  @return string
+	 */
 	private static function int32ToHexString($n){
 		$hexChars = '0123456789abcdef';
 		$hexString = '';
@@ -1180,6 +1476,13 @@ class Transport {
 		return $hexString;
 	}
 	
+	/**
+	 *  @brief applay XOR on two integers
+	 *  
+	 *  @param int $a first parameter
+	 *  @param int $b second parameter
+	 *  @return integer
+	 */
 	private static function int64Xor($a, $b){
 		$sA = decbin($a);
 		$sB = decbin($b);
@@ -1206,6 +1509,13 @@ class Transport {
 		return bindec($sC);
 	}
 
+	/**
+	 *  @brief undocumented function
+	 *  
+	 *  @param array $pdwData pdwData
+	 *  @param array $pInHash pInHash
+	 *  @return array macs and sums
+	 */
 	private static function cS64($pdwData, $pInHash){
 		$MODULUS = 2147483647;
 		$CS64_a = $pInHash[0] & $MODULUS;
@@ -1242,6 +1552,12 @@ class Transport {
 		return [$qwMAC, $qwSum];
 	}
 
+	/**
+	 *  @brief compute the Skype hashmac256 of given value
+	 *  
+	 *  @param integer $challenge input value
+	 *  @return string the computed hash
+	 */
 	public static function getMac256Hash($challenge) {
 		$clearText = $challenge . self::LOCKANDKEY_APPID;
 		$clearText .= str_repeat('0',  (8 - strlen($clearText) % 8));

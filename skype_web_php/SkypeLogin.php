@@ -1,12 +1,30 @@
 <?php
+/**
+ *  @file SkypeLogin.php
+ *  @brief Microsoft oauth authentication for Skype
+ */
 namespace skype_web_php;
 
 require_once dirname(__FILE__).DIRECTORY_SEPARATOR.'json.php';
 
+/**
+ * Class SkypeLogin
+ *
+ * @package skype_web_php
+ */
 class SkypeLogin {
 
+    /**
+     * @var LoginUrl
+     */
 	static protected $loginUrl = 'https://login.skype.com/login?client_id=578134&redirect_uri=https%3A%2F%2Fweb.skype.com';
 
+	/**
+	 *  @brief extract the JSON object ServerData from a response body
+	 *  
+	 *  @param [in] $string Description for $string
+	 *  @return stdClass
+	 */
 	static public function parseServerData($string) {
 		$srvDataStart = strpos($string, 'ServerData');
 		$srvData = substr($string, $srvDataStart);
@@ -17,7 +35,16 @@ class SkypeLogin {
 		$srvData = $json->decode($srvData);
 		return $srvData;
 	}
-	
+
+	/**
+	 *  @brief load the Skype token from a session or fetch a new one if expired
+	 *  
+	 *  @param string $login user login
+	 *  @param string $passwd user password
+	 *  @param string $dataPath local path where to find session file
+	 *  @param int $expiresTreshold expiry treshold
+	 *  @return array Skype token and expires value
+	 */
 	static public function getSkypeToken($login, $passwd, $dataPath, $expiresTreshold=3600) {
 		$sessionData = json_decode(file_get_contents($dataPath.$login.'-session.json'), true);
 		$sessionData['skypeToken']['expires_in'] = (int)$sessionData['skypeToken']['expires_in'];
@@ -33,6 +60,14 @@ class SkypeLogin {
 		return $sessionData['skypeToken'];
 	}
 
+	/**
+	 *  @brief process oauth login
+	 *  
+	 *  @param string $login user login
+	 *  @param string $passwd user password
+	 *  @param [in] $dataPath local path where to find data and cURL cookie file directory
+	 *  @return mixed array Skype token and expires value or null if error
+	 */
 	static public function fetchSkypeToken($login, $passwd, $dataPath) {
 		$skypeToken = null;
 		$skypeTokenExpires = null;

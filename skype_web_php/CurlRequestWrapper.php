@@ -1,13 +1,20 @@
 <?php
+/**
+ *  @file CurlRequestWrapper.php
+ *  @brief yet another light cURL request wrapper.
+ */
 namespace skype_web_php;
 
+/**
+ * Class CurlRequestWrapper
+ * @package skype_web_php
+ */
 class CurlRequestWrapper {
 	
 	protected $ch;
 	protected $sessOptions;
 	protected $pathToCookieJar;
 	protected $callbacks;
-	
 	protected $baseOptions = [
 		CURLOPT_ENCODING => '',
 		CURLOPT_TIMEOUT => 10,
@@ -24,7 +31,13 @@ class CurlRequestWrapper {
 		CURLOPT_MAXREDIRS => 10,
 		CURLOPT_CONNECTTIMEOUT => 5,
 	];
-	
+
+	/**
+	 *  @brief constructor
+	 *  
+	 *  @param string $pathtoCookieJar directory path where to write cookie file
+	 *  @return void
+	 */
 	public function __construct($pathtoCookieJar=null) {
 		if(null !== $pathtoCookieJar) {
 			$this->pathToCookieJar = rtrim($pathtoCookieJar, DIRECTORY_SEPARATOR);
@@ -35,16 +48,34 @@ class CurlRequestWrapper {
 		$this->sessOptions = [];
 	}
 	
+	/**
+	 *  @brief set boot options for a request
+	 *  
+	 *  @return void
+	 */
 	protected function initBaseOptions() {
 		foreach($this->baseOptions as $k => $v) {
 			curl_setopt($this->ch, $k, $v);
 		}
 	}
 	
+	/**
+	 *  @brief register a callback function to be run on each response 
+	 *  
+	 *  @param function $callback callback function
+	 *  @return void
+	 */
 	public function registerCallback($callback) {
 		$this->callbacks[] = $callback;
 	}
 	
+	/**
+	 *  @brief build a request and send it to the target host
+	 *  
+	 *  @param string $method a value in [GET, POST,PUT, DELETE, PATCH, HEAD, OPTIONS]
+	 *  @param string $url target URL
+	 *  @return CurlResponseWrapper
+	 */
 	public function send($method, $url, $params=[]) {
 		$this->ch = curl_init();
 		$this->initBaseOptions();
@@ -139,7 +170,7 @@ class CurlRequestWrapper {
 		
 		$response = new CurlResponseWrapper($this->ch);
 		foreach($this->callbacks as $cb) {
-			$response = call_user_func_array($cb, array($response));
+			$response = call_user_func_array($cb, [$response]);
 		}
 		@curl_close($this->ch);
 		//echo $method, ' ', $url, PHP_EOL;

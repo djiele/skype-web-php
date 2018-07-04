@@ -1,5 +1,10 @@
 <?php
+/**
+ *  @file Endpoint.php
+ *  @brief prepare requests to be sent by the transport class
+ */
 namespace skype_web_php;
+
 /**
  * Class Endpoint
  *
@@ -9,20 +14,19 @@ class Endpoint
 {
 
     /**
-     * @var
+     * @var Method
      */
     private $method;
     /**
-     * @var
+     * @var Uri
      */
     private $uri;
     /**
-     * @var array
+     * @var Params
      */
     private $params;
-
     /**
-     * @var array
+     * @var Requires
      */
     private $requires = [
         'skypeToken' => false,
@@ -30,10 +34,11 @@ class Endpoint
     ];
 
     /**
-     * @param $method
-     * @param $uri
-     * @param array $params
-     * @param array $requires
+     *  @brief constructor
+     *  
+     *  @param string $method a value in [GET, POST,PUT, DELETE, PATCH, HEAD, OPTIONS]
+     *  @param string $uri target URL
+     *  @return void
      */
     public function __construct($method, $uri, array $params = [], array $requires = [])
     {
@@ -47,7 +52,9 @@ class Endpoint
     }
 
     /**
-     * @return $this
+     *  @brief set the skypeToken flag to true
+     *  
+     *  @return $this
      */
     public function needSkypeToken()
     {
@@ -57,7 +64,9 @@ class Endpoint
     }
 
     /**
-     * @return mixed
+     *  @brief get the skypeToken flag
+     *  
+     *  @return $this
      */
     public function skypeToken()
     {
@@ -65,7 +74,9 @@ class Endpoint
     }
 
     /**
-     * @return $this
+     *  @brief set the regToken flag to true
+     *  
+     *  @return $this
      */
     public function needRegToken()
     {
@@ -75,7 +86,9 @@ class Endpoint
     }
 
     /**
-     * @return mixed
+     *  @brief get the regToken flag
+     *  
+     *  @return $this
      */
     public function regToken()
     {
@@ -83,8 +96,10 @@ class Endpoint
     }
 
     /**
-     * @param $args
-     * @return Endpoint
+     *  @brief process place holders in URL
+     *  
+     *  @param array $args list of values
+     *  @return Endpoint
      */
     public function format($args)
     {
@@ -92,8 +107,9 @@ class Endpoint
     }
 
     /**
-     * @param array $args
-     * @return Request|\Psr\Http\Message\MessageInterface
+     *  @brief get a prepared request to be sent by the cURL client
+     *  
+     *  @return Request
      */
     public function getRequest($args = [])
     {
@@ -107,11 +123,21 @@ class Endpoint
         }
         return $Request;
     }
-	
+
+	/**
+	 *  @brief get the URI of current Endpoint
+	 *  
+	 *  @return string
+	 */
 	public function getUri() {
 		return $this->uri;
 	}
-	
+
+	/**
+	 *  @brief get the HTTP method of current Endpoint
+	 *  
+	 *  @return string
+	 */
 	public function getMethod() {
 		return $this->method;
 	}

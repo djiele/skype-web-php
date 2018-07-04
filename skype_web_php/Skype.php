@@ -1,4 +1,8 @@
 <?php
+/**
+ *  @file Skype.php
+ *  @brief Skype web public API
+ */
 namespace skype_web_php;
 
 /**
@@ -48,16 +52,26 @@ class Skype
      * @var Transport
      */
     private $transport;
+	/**
+     * @var Username
+     */
+    private $username;
+	/**
+     * @var Datapath
+     */
+    private $datapath;
 	
     /**
      *  @brief constructor
      *  
-     *  @param string $loginName skype or live username
+     *  @param string $loginName Skype or live username
      *  @param string $dataPath path to where should be stored session files and cookieJar
      *  @return void
      */
     public function __construct($loginName, $password, $dataPath)
     {
+		$this->username = $loginName;
+		$this->dataPath = $dataPath;
         $this->transport = new Transport($loginName, $password, $dataPath);
     }
 	
@@ -148,6 +162,19 @@ class Skype
 		return $this->transport->getPeToken();
 	}
 
+    /**
+     *  @brief set user status
+     *  
+     *  @param string $status a string amongst Online, Busy, Hidden
+     *  @return boolean
+     */
+	public function setStatus($status) {
+		if(!in_array($status, [self::STATUS_ONLINE, self::STATUS_BUSY, self::STATUS_HIDDEN])) {
+			return false;
+		}
+		return $this->transport->setStatus($status);
+	}
+	
 	/**
 	 *  @brief concat firstanme and lastname of current user
 	 *  
@@ -198,15 +225,31 @@ class Skype
 	}
 
 	/**
-	 *  @brief update user profile with an array of key, value
+	 *  @brief update user profile with an array of key, value pairs
 	 *  
 	 *  @param array $data properties to be serialized in JSON format
 	 *  @return boolean
 	 */
 	public function updateProfile(array $data, $refresh=false) {
-		if(($Result = $this->transport->updateProfile($data))) {
-			if(true===$refresh){
-				$this->profile = $this->transport->loadFullProfile();
+		$possibleKeys = [
+			'about', 'birthday', 'city', 'country',
+			'firstname', 'gender', 'homepage', 'jobtitle',
+			'language', 'lastname', 'mood', 'phonehome', 
+			'phonemobile', 'phoneoffice', 'province', 'richmood'
+		];
+		foreach($data as $k=>$v) {
+			if(!in_array($k, $possibleKeys)) {
+				echo 'dropped invalid property [', $k, ']', PHP_EOL;
+				unset($data[$k]);
+			}
+		}
+		if(0 == count($data)) {
+			$Result = false;
+		} else {
+			if(($Result = $this->transport->updateProfile($data))) {
+				if(true===$refresh){
+					$this->profile = $this->transport->loadFullProfile();
+				}
 			}
 		}
 		return $Result;
@@ -277,7 +320,7 @@ class Skype
 		}
 		return $this->transport->acceptOrDeclineInvite($mri, $action='decline');
 	}
-
+	
 	/**
 	 *  @brief remove authorization for target user
 	 *  
@@ -371,6 +414,25 @@ class Skype
 		}
 	}
 
+	/**
+	 *  @brief set agent attribute to currentenpoint (also used to probe endpoint)
+	 *  
+	 *  @param array $sessionData an array containing endpoint URL and registration token
+	 *  @return boolean
+	 */
+	public function setEndpointFeaturesAgent() {
+		if(($sessiondata = file_get_contents($this->dataPath.$this->username.'-session.json'))) {
+			$sessionData = json_decode($sessiondata, true);
+			if(is_array($sessionData) && array_key_exists('regToken', $sessionData)) {
+				return $this->transport->setEndpointFeaturesAgent($sessionData['regToken']);
+			} else {
+				return false;
+			}
+		} else {
+			return false;
+		}
+	}
+	
 	/**
 	 *  @brief undocumented method
 	 *  
@@ -515,6 +577,27 @@ class Skype
     }
 
 	/**
+	 *  @brief send a contact card
+	 *  
+	 *  @param string $mri MRI of target user
+	 *  @param string $contactMri MRI of contact to be sent
+	 *  @return mixed int ID of sent message or false if error
+	 */
+	public function sendContact($mri, $contactMri) {
+		$mri = $this->usernameToMri($mri);
+		$contactMri = $this->usernameToMri($contactMri);
+		$fromDisplayname = $this->getMyDisplayname();
+		$contact = $this->getContact($contactMri);
+		if(is_object($contact) && isset($contact->mri)) {
+			$contactDisplayname = $contact->display_name;
+			return $this->transport->sendContact($mri, $fromDisplayname, $contactMri, $contactDisplayname);
+		} else {
+			echo $contactMri,' not found in contacts list', PHP_EOL;
+			return false;
+		}
+	}
+
+	/**
 	 *  @brief share an image with recipients in $mrisWithAccessRights
 	 *  
 	 *  @param array $mrisWithAccessRights recipients list like [8:live:john.doe => [read]]
@@ -548,27 +631,6 @@ class Skype
 		}
 		$fromDisplayname = $this->getMyDisplayname();
 		return $this->transport->sendFile($passed, $filename, $fromDisplayname);
-	}
-
-	/**
-	 *  @brief send a contact card
-	 *  
-	 *  @param string $mri MRI of target user
-	 *  @param string $contactMri MRI of contact to be sent
-	 *  @return mixed int ID of sent message or false if error
-	 */
-	public function sendContact($mri, $contactMri) {
-		$mri = $this->usernameToMri($mri);
-		$contactMri = $this->usernameToMri($contactMri);
-		$fromDisplayname = $this->getMyDisplayname();
-		$contact = $this->getContact($contactMri);
-		if(is_object($contact) && isset($contact->mri)) {
-			$contactDisplayname = $contact->display_name;
-			return $this->transport->sendContact($mri, $fromDisplayname, $contactMri, $contactDisplayname);
-		} else {
-			echo $contactMri,' not found in contacts list', PHP_EOL;
-			return false;
-		}
 	}
 
 	/**
