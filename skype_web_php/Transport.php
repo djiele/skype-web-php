@@ -1,7 +1,24 @@
 <?php
 /**
- *  @file Transport.php
- *  @brief Skype API calls
+ * Skype web API
+ *
+ * LICENSE: Permission is hereby granted, free of charge, to any person obtaining a copy of this software
+ * and associated documentation files (the "Software"), to deal in the Software without restriction,
+ * including without limitation the rights to use, copy, modify, merge, publish, distribute,
+ * sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished
+ * to do so, subject to the following conditions: The above copyright notice and this permission notice
+ * shall be included in all copies or substantial portions of the Software.
+ * 
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING
+ * BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE
+ * AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+ * DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+ * 
+ * @package skype_web_php
+ * @file Transport.php
+ * @brief Skype web API
+ * @license https://opensource.org/licenses/MIT
  */
 namespace skype_web_php;
 
@@ -10,49 +27,143 @@ use DOMDocument;
 use DOMXPath;
 
 /**
- * Class Transport
+ * Skype web API
  *
- * @package skype_web_php
+ * <code>
+ * // create a new instance of Transport
+ * $skype = new Transport($username, $passwd, getcwd().DIRECTORY_SEPARATOR.'app-data'.DIRECTORY_SEPARATOR);
+ * $skype->login() or die('Login failed');
+ * // list of user's contacts
+ * $contacts = $skype->loadContacts();
+ * $skype->logout()
+ * </code>
  */
 class Transport {
 
+	/**
+     * @brief CLIENTINFO_NAME
+     */
 	const CLIENTINFO_NAME = 'skype.com';
+	/**
+     * @brief CLIENT_VERSION
+     */
 	const CLIENT_VERSION = '908/1.118.0.30//skype.com';
+	/**
+     * @brief LOCKANDKEY_APPID
+     */
 	const LOCKANDKEY_APPID = 'msmsgs@msnmsgr.com';
+	/**
+     * @brief LOCKANDKEY_SECRET
+     */
 	const LOCKANDKEY_SECRET = 'Q1P7W2E4J9R8U3S5';
+	/**
+     * @brief SKYPE_WEB
+     */
 	const SKYPE_WEB = 'web.skype.com';
+	/**
+     * @brief CONTACTS_HOST
+     */
 	const CONTACTS_HOST = 'api.skype.com';
+	/**
+     * @brief NEW_CONTACTS_HOST
+     */
 	const NEW_CONTACTS_HOST = 'contacts.skype.com';
+	/**
+     * @brief DEFAULT_MESSAGES_HOST
+     */
 	const DEFAULT_MESSAGES_HOST = 'client-s.gateway.messenger.live.com';
+	/**
+     * @brief LOGIN_HOST
+     */
 	const LOGIN_HOST = 'login.skype.com';
+	/**
+     * @brief VIDEOMAIL_HOST
+     */
 	const VIDEOMAIL_HOST = 'vm.skype.com';
+	/**
+     * @brief XFER_HOST
+     */
 	const XFER_HOST = 'api.asm.skype.com';
+	/**
+     * @brief GRAPH_HOST
+     */
 	const GRAPH_HOST = 'skypegraph.skype.com';
+	/**
+     * @brief STATIC_HOST
+     */
 	const STATIC_HOST = 'static.asm.skype.com';
+	/**
+     * @brief STATIC_CDN_HOST
+     */
 	const STATIC_CDN_HOST = 'static-asm.secure.skypeassets.com';
+	/**
+     * @brief DEFAULT_CONTACT_SUGGESTIONS_HOST
+     */
 	const DEFAULT_CONTACT_SUGGESTIONS_HOST = 'peoplerecommendations.skype.com';
 
+	/**
+     * @brief WebSessionId
+     */
 	private $webSessionId;
+	/**
+     * @brief LoginName
+     */
 	private $loginName;
+	/**
+     * @brief Password
+     */
 	private $password;
+	/**
+     * @brief Username
+     */
 	private $username;
+	/**
+     * @brief DataPath
+     */
 	private $dataPath;
     /**
-     * @var Client
+     * @brief Client
      */
     private $client;
+    /**
+     * @brief SkypeToken
+     */
     private $skypeToken;
+    /**
+     * @brief SkypeTokenExpires
+     */
 	private $skypeTokenExpires;
-    private $regToken;
+    /**
+     * @brief RegToken
+     */
+	private $regToken;
+    /**
+     * @brief RegTokenExpires
+     */
 	private $regTokenExpires;
+    /**
+     * @brief EndpointUrl
+     */
 	private $endpointUrl;
+    /**
+     * @brief EndpointId
+     */
 	private $endpointId;
+    /**
+     * @brief EndpointPresenceDocUrl
+     */
 	private $endpointPresenceDocUrl;
+    /**
+     * @brief EndpointSubscriptionsUrl
+     */
 	private $endpointSubscriptionsUrl;
-    private $cloud;
+    /**
+     * @brief Cloud
+     */
+	private $cloud;
 
     /**
-     * @var Endpoints []
+     * @brief Endpoints []
      */
     private static $Endpoints = null;
 
@@ -837,7 +948,6 @@ class Transport {
 	/**
 	 *  @brief set agent attribute to currentenpoint (also used to probe endpoint)
 	 *  
-	 *  @param array $sessionData an array containing endpoint URL and registration token
 	 *  @return boolean
 	 */
 	public function endpointSetSupportMessageProperties() {

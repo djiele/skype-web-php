@@ -1,21 +1,39 @@
 <?php
 /**
- *  @file SkypeLogin.php
- *  @brief Microsoft oauth authentication for Skype
+ * Microsoft oauth authentication for Skype
+ *
+ * LICENSE: Permission is hereby granted, free of charge, to any person obtaining a copy of this software
+ * and associated documentation files (the "Software"), to deal in the Software without restriction,
+ * including without limitation the rights to use, copy, modify, merge, publish, distribute,
+ * sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished
+ * to do so, subject to the following conditions: The above copyright notice and this permission notice
+ * shall be included in all copies or substantial portions of the Software.
+ * 
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING
+ * BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE
+ * AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+ * DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+ * 
+ * @package skype_web_php
+ * @file SkypeLogin.php
+ * @brief Microsoft oauth authentication for Skype
  */
 namespace skype_web_php;
 
 require_once dirname(__FILE__).DIRECTORY_SEPARATOR.'json.php';
 
 /**
- * Class SkypeLogin
+ * Microsoft oauth authentication for Skype
  *
- * @package skype_web_php
+ * <code>
+ * $tokenData = SkypeLogin::getSkypeToken('joe.bloggs', 'password', getcwd().DIRECTORY_SEPARATOR.'app-data'.DIRECTORY_SEPARATOR);
+ * </code>
  */
 class SkypeLogin {
 
     /**
-     * @var LoginUrl
+     * @brief LoginUrl
      */
 	static protected $loginUrl = 'https://login.skype.com/login?client_id=578134&redirect_uri=https%3A%2F%2Fweb.skype.com';
 

@@ -1,27 +1,48 @@
 <?php
 /**
- *  @file Request.php
- *  @brief prepared request to be sent by cURL client
+ * prepared request to be sent by cURL client
+ *
+ * LICENSE: Permission is hereby granted, free of charge, to any person obtaining a copy of this software
+ * and associated documentation files (the "Software"), to deal in the Software without restriction,
+ * including without limitation the rights to use, copy, modify, merge, publish, distribute,
+ * sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished
+ * to do so, subject to the following conditions: The above copyright notice and this permission notice
+ * shall be included in all copies or substantial portions of the Software.
+ * 
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING
+ * BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE
+ * AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+ * DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+ * 
+ * @package skype_web_php
+ * @file Request.php
+ * @brief prepared request to be sent by cURL client
+ * @license https://opensource.org/licenses/MIT
  */
 namespace skype_web_php;
 
 /**
- * Class Request
+ * prepared request to be sent by cURL client
  *
- * @package skype_web_php
+ * <code>
+ * // create a new instance of Request
+ * $request = new Request('GET', 'https://www.example.com', ['debug => true']);
+ * $request->withHeader('Authorization', 'bearer ldfsdmdfsfk...dlfdkfdlfkl');
+ * </code>
  */
 class Request {
 	
     /**
-     * @var Method
+     * @brief Method
      */
 	protected $method;
     /**
-     * @var Uri
+     * @brief Uri
      */
 	protected $uri;
     /**
-     * @var Params
+     * @brief Params
      */
 	protected $params;
 	
@@ -54,7 +75,8 @@ class Request {
 	/**
 	 *  @brief add request headers (may override)
 	 *  
-	 *  @param array $params parameters to inject
+	 *  @param string $headerName
+	 *  @param string $headerValue
 	 *  @return void
 	 */
 	public function withHeader($headerName, $headerValue) {

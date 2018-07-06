@@ -1,63 +1,94 @@
 <?php
 /**
- *  @file Skype.php
- *  @brief Skype web public API
+ * High Level Skype web API
+ *
+ * LICENSE: Permission is hereby granted, free of charge, to any person obtaining a copy of this software
+ * and associated documentation files (the "Software"), to deal in the Software without restriction,
+ * including without limitation the rights to use, copy, modify, merge, publish, distribute,
+ * sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished
+ * to do so, subject to the following conditions: The above copyright notice and this permission notice
+ * shall be included in all copies or substantial portions of the Software.
+ * 
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING
+ * BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE
+ * AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+ * DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+ * 
+ * @package skype_web_php
+ * @file Skype.php
+ * @brief high Level Skype web API
+ * @license https://opensource.org/licenses/MIT
  */
 namespace skype_web_php;
 
 /**
- * Class Skype
- * @package skype_web_php
+ * Skype web public API
+ *
+ * Brief example of use:
+ *
+ * <code>
+ * // create a new instance of Skype
+ * $skype = new Skype($username, $passwd, getcwd().DIRECTORY_SEPARATOR.'app-data'.DIRECTORY_SEPARATOR);
+ * $skype->login() or die('Login failed');
+ * // messaging environment
+ * $skype->enableMessaging(Skype::STATUS_ONLINE);
+ * // send a text message
+ * $message_id = $skype->sendMessage("Hello: ".date('Y-m-d H:i:s'), $contact_id);
+ * $skype->disableMessaging();
+ * $skype->logout();
+ * </code>
  */
 class Skype
 {
 
-    /**
-     *
-     */
+	/** 
+	 * @brief const STATUS_ONLINE
+	 */
     const STATUS_ONLINE = 'Online';
-    /**
-     *
-     */
+	/** 
+	 * @brief const STATUS_HIDDEN
+	 */
     const STATUS_HIDDEN = 'Hidden';
-    /**
-     *
-     */
+	/** 
+	 * @brief const STATUS_BUSY
+	 */
     const STATUS_BUSY = 'Busy';
+
     /**
-     * @var
+     * @brief stdClass user profile
      */
     public $profile;
     /**
-     * @var
+     * @brief array list of contacts
      */
     public $contacts;
     /**
-     * @var
+     * @brief array list of groups
      */
     public $groups;
     /**
-     * @var
+     * @brief array list of blocked users
      */
     public $blocklist;
     /**
-     * @var
+     * @brief array list of conversations
      */
     public $conversations;
     /**
-     * @var
+     * @brief array list of threads
      */
     public $threads;
 	/**
-     * @var Transport
+     * @brief Transport API calls
      */
     private $transport;
 	/**
-     * @var Username
+     * @brief string username
      */
     private $username;
 	/**
-     * @var Datapath
+     * @brief string path to sessions directory
      */
     private $datapath;
 	
@@ -65,6 +96,7 @@ class Skype
      *  @brief constructor
      *  
      *  @param string $loginName Skype or live username
+     *  @param string $password password
      *  @param string $dataPath path to where should be stored session files and cookieJar
      *  @return void
      */
@@ -228,6 +260,7 @@ class Skype
 	 *  @brief update user profile with an array of key, value pairs
 	 *  
 	 *  @param array $data properties to be serialized in JSON format
+	 *  @param boolean $refresh wether to resend profile request
 	 *  @return boolean
 	 */
 	public function updateProfile(array $data, $refresh=false) {
@@ -290,6 +323,7 @@ class Skype
 	 *  @brief send authorization request to given user
 	 *  
 	 *  @param string $mri target user (MRI)
+	 *  @param string $greeting greeting message
 	 *  @return boolean
 	 */	
 	public function sendContactRequest($mri, $greeting='Hello would you please add me to your contact list') {
@@ -417,7 +451,6 @@ class Skype
 	/**
 	 *  @brief set agent attribute to currentenpoint (also used to probe endpoint)
 	 *  
-	 *  @param array $sessionData an array containing endpoint URL and registration token
 	 *  @return boolean
 	 */
 	public function setEndpointFeaturesAgent() {
@@ -510,7 +543,7 @@ class Skype
 	/**
 	 *  @brief empty the target conversation
 	 *  
-	 *  @param string MRI of target conversation
+	 *  @param string $mri MRI of target conversation
 	 *  @return boolean
 	 */
 	public function deleteConversation($mri) {

@@ -1,36 +1,60 @@
 <?php
 /**
- *  @file CurlRequestWrapper.php
- *  @brief yet another light cURL request wrapper.
+ * yet another light cURL request wrapper
+ *
+ * LICENSE: Permission is hereby granted, free of charge, to any person obtaining a copy of this software
+ * and associated documentation files (the "Software"), to deal in the Software without restriction,
+ * including without limitation the rights to use, copy, modify, merge, publish, distribute,
+ * sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished
+ * to do so, subject to the following conditions: The above copyright notice and this permission notice
+ * shall be included in all copies or substantial portions of the Software.
+ * 
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING
+ * BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE
+ * AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+ * DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+ * 
+ * @package skype_web_php
+ * @file CurlRequestWrapper.php
+ * @brief yet another light cURL request wrapper
+ * @license https://opensource.org/licenses/MIT
  */
 namespace skype_web_php;
 
 /**
- * Class CurlRequestWrapper
- * @package skype_web_php
+ * yet another light cURL request wrapper
+ *
+ * <code>
+ * // create a new instance of CurlRequestWrapper
+ * $client = new CurlRequestWrapper(getcwd().DIRECTORY_SEPARATOR.'app-data'.DIRECTORY_SEPARATOR.'curl'.DIRECTORY_SEPARATOR);
+ * $response = $client->send('GET', 'https://www.example.com');
+ * // echo the status code
+ * echo $response->getStatusCode(), PHP_EOL;
+ * </code>
  */
 class CurlRequestWrapper {
 	
+	/**
+     * @brief cURL resource
+     */
 	protected $ch;
+	/**
+     * @brief SessOptions []
+     */
 	protected $sessOptions;
+	/**
+     * @brief PathToCookieJar
+     */
 	protected $pathToCookieJar;
+	/**
+     * @brief Callbacks []
+     */
 	protected $callbacks;
-	protected $baseOptions = [
-		CURLOPT_ENCODING => '',
-		CURLOPT_TIMEOUT => 10,
-		CURLOPT_USERAGENT => 'Mozilla/5.0 (Windows NT 10.0; ...) Gecko/20100101 Firefox/60.0',
-		CURLOPT_COOKIESESSION => false,
-		CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_NONE,
-		CURLOPT_SSLVERSION => CURL_SSLVERSION_DEFAULT,
-		CURLOPT_SSL_VERIFYHOST => 2,
-		CURLOPT_HEADER => true,
-		CURLOPT_AUTOREFERER => true,
-		CURLOPT_RETURNTRANSFER => true,
-		CURLOPT_VERBOSE  => false,
-		CURLOPT_FOLLOWLOCATION => true,
-		CURLOPT_MAXREDIRS => 10,
-		CURLOPT_CONNECTTIMEOUT => 5,
-	];
+	/**
+     * @brief BaseOptions []
+     */
+	protected $baseOptions;
 
 	/**
 	 *  @brief constructor
@@ -39,6 +63,22 @@ class CurlRequestWrapper {
 	 *  @return void
 	 */
 	public function __construct($pathtoCookieJar=null) {
+		$this->baseOptions = [
+			CURLOPT_ENCODING => '',
+			CURLOPT_TIMEOUT => 10,
+			CURLOPT_USERAGENT => 'Mozilla/5.0 (Windows NT 10.0; ...) Gecko/20100101 Firefox/60.0',
+			CURLOPT_COOKIESESSION => false,
+			CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_NONE,
+			CURLOPT_SSLVERSION => CURL_SSLVERSION_DEFAULT,
+			CURLOPT_SSL_VERIFYHOST => 2,
+			CURLOPT_HEADER => true,
+			CURLOPT_AUTOREFERER => true,
+			CURLOPT_RETURNTRANSFER => true,
+			CURLOPT_VERBOSE  => false,
+			CURLOPT_FOLLOWLOCATION => true,
+			CURLOPT_MAXREDIRS => 10,
+			CURLOPT_CONNECTTIMEOUT => 5,
+		];
 		if(null !== $pathtoCookieJar) {
 			$this->pathToCookieJar = rtrim($pathtoCookieJar, DIRECTORY_SEPARATOR);
 			$this->baseOptions[CURLOPT_COOKIEJAR] = $this->pathToCookieJar.'/cookie.txt';
@@ -74,6 +114,7 @@ class CurlRequestWrapper {
 	 *  
 	 *  @param string $method a value in [GET, POST,PUT, DELETE, PATCH, HEAD, OPTIONS]
 	 *  @param string $url target URL
+	 *  @param array $params request parameters
 	 *  @return CurlResponseWrapper
 	 */
 	public function send($method, $url, $params=[]) {

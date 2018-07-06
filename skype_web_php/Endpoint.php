@@ -1,43 +1,62 @@
 <?php
 /**
- *  @file Endpoint.php
- *  @brief prepare requests to be sent by the transport class
+ * request endpoint
+ *
+ * LICENSE: Permission is hereby granted, free of charge, to any person obtaining a copy of this software
+ * and associated documentation files (the "Software"), to deal in the Software without restriction,
+ * including without limitation the rights to use, copy, modify, merge, publish, distribute,
+ * sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished
+ * to do so, subject to the following conditions: The above copyright notice and this permission notice
+ * shall be included in all copies or substantial portions of the Software.
+ * 
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING
+ * BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE
+ * AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+ * DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+ * 
+ * @package skype_web_php
+ * @file Endpoint.php
+ * @brief request endpoint
+ * @license https://opensource.org/licenses/MIT
  */
 namespace skype_web_php;
 
 /**
- * Class Endpoint
+ * request endpoint
  *
- * @package skype_web_php
+ * <code>
+ * // create a new instance of Endpoint
+ * $endpoint = new Endpoint('GET', 'https://www.example.com', ['debug => true'], ['regToken' => true]);
+ * </code>
  */
 class Endpoint
 {
 
     /**
-     * @var Method
+     * @brief Method
      */
     private $method;
     /**
-     * @var Uri
+     * @brief Uri
      */
     private $uri;
     /**
-     * @var Params
+     * @brief Params
      */
     private $params;
     /**
-     * @var Requires
+     * @brief Requires
      */
-    private $requires = [
-        'skypeToken' => false,
-        'regToken' => false,
-    ];
+    private $requires = ['skypeToken' => false, 'regToken' => false];
 
     /**
      *  @brief constructor
      *  
      *  @param string $method a value in [GET, POST,PUT, DELETE, PATCH, HEAD, OPTIONS]
      *  @param string $uri target URL
+     *  @param array $params request parameters
+     *  @param array $requires request requirements (skypeToken, regToken)
      *  @return void
      */
     public function __construct($method, $uri, array $params = [], array $requires = [])

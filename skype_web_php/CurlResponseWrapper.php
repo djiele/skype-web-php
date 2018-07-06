@@ -1,22 +1,66 @@
 <?php
 /**
- *  @file CurlResponseWrapper.php
- *  @brief yet another light cURL response wrapper.
+ * yet another light cURL response wrapper
+ *
+ * LICENSE: Permission is hereby granted, free of charge, to any person obtaining a copy of this software
+ * and associated documentation files (the "Software"), to deal in the Software without restriction,
+ * including without limitation the rights to use, copy, modify, merge, publish, distribute,
+ * sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished
+ * to do so, subject to the following conditions: The above copyright notice and this permission notice
+ * shall be included in all copies or substantial portions of the Software.
+ * 
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING
+ * BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE
+ * AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+ * DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+ * 
+ * @package skype_web_php
+ * @file CurlResponseWrapper.php
+ * @brief yet another light cURL response wrapper
+ * @license https://opensource.org/licenses/MIT
  */
 namespace skype_web_php;
 
 /**
- * Class CurlResponseWrapper
- * @package skype_web_php
+ * yet another light cURL response wrapper
+ *
+ * <code>
+ * // create a new instance of CurlResponseWrapper
+ * $response = new CurlResponseWrapper($curlResource);
+ * // echo the status code
+ * echo $response->getStatusCode(), PHP_EOL;
+ * </code>
  */
 class CurlResponseWrapper {
 	
+	/**
+     * @brief cURL resource
+     */
 	protected $ch;
+	/**
+     * @brief Response
+     */
 	protected $response;
+	/**
+     * @brief ResponseProto
+     */
 	protected $responseProto;
+	/**
+     * @brief ReasonPhrase
+     */
 	protected $reasonPhrase;
+	/**
+     * @brief Headers []
+     */
 	protected $headers;
+	/**
+     * @brief ResponseData []
+     */
 	protected $responseData;
+	/**
+     * @brief Error
+     */
 	protected $error;
 	
 	/**
