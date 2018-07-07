@@ -14,7 +14,7 @@ $skype = new Skype($username, $passwd, getcwd().DIRECTORY_SEPARATOR.'app-data'.D
 $skype->login() or die('Login failed');
 $skype->enableMessaging(Skype::STATUS_HIDDEN);
 
-$contact_id = $skype->getContact("vomoskal")->id;
+$contact_id = $skype->getContact("vomoskal")->mri;
 $message_id = $skype->sendMessage("Hello: ".date('Y-m-d H:i:s'), $contact_id);
 sleep(2);
 $skype->editMessage("Hello: ".date('Y-m-d H:i:s'), $contact_id, $message_id);
