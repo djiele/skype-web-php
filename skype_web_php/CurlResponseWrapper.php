@@ -79,6 +79,12 @@ class CurlResponseWrapper {
 		for($i=0; $i<$retryOnError; $i++) {
 			$errNo = curl_errno($this->ch);
 			if(0 == $this->responseData['http_code'] || 0<$errNo) {
+				if(0 == $this->responseData['http_code'] && 28 == $errNo) {
+					$this->response = "HTTP/1.1 204 No Content\r\nContent-Length: 0\r\n";
+					$this->responseData['header_size'] = strlen($this->response);
+					$this->error = null;
+					break;
+				}
 				$this->error = $errNo.' '.curl_error($this->ch);
 				sleep($retrySleep);
 				$this->response = curl_exec($this->ch);
@@ -184,7 +190,7 @@ class CurlResponseWrapper {
 	 *  @return void
 	 */
 	protected function parseResponse() {
-		$headerLen = curl_getinfo($this->ch, CURLINFO_HEADER_SIZE);
+		$headerLen = $this->responseData['header_size'];
 		$tmp = explode("\n", rtrim(substr($this->response, 0, $headerLen)));
 		$li = array_shift($tmp);
 		$tokens = explode(' ', rtrim($li));

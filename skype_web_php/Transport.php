@@ -260,6 +260,7 @@ class Transport {
 		if(1==substr_count($hostname, self::DEFAULT_MESSAGES_HOST)) {
 			$ret['Accept'] = 'application/json; ver=1.0';
 			$ret['ClientInfo'] = 'os=Windows; osVer=10; proc=Win64; lcid=en-us; deviceType=1; country=n/a; clientName='.self::CLIENTINFO_NAME.'; clientVer='.self::CLIENT_VERSION;
+			$ret['BehaviorOverride'] = 'redirectAs404';
 		} else if(1==substr_count($hostname, self::CONTACTS_HOST) || 1==substr_count($hostname, self::NEW_CONTACTS_HOST) || 1==substr_count($hostname, self::VIDEOMAIL_HOST)) {
 			$ret['Accept'] = 'application/json; ver=1.0';
 			$ret['X-Skype-Caller'] = 'skype.com';
@@ -973,6 +974,22 @@ class Transport {
         ]);
 		return 200 == $Response->getStatusCode();
 	}
+
+	/**
+	 *  @brief set TTL for current endpoint
+	 *  
+	 *  @return boolean
+	 */
+	public function endpointTtl($ttl=12) {
+		$Request = new Endpoint('POST', 'https://%sclient-s.gateway.messenger.live.com/v1/users/ME/endpoints/SELF/active');
+		$Response = $this->request($Request, [
+			'debug' => false,
+			'format' => [$this->cloud ? $this->cloud : ''],
+            'headers' => ['Content-Type' => 'application/json'],
+			'json' => ['timeout' => $ttl]
+        ]);
+		return 201 == $Response->getStatusCode();
+	}
 	
 	/**
 	 *  @brief get user properties in the current messaging context
@@ -1345,12 +1362,30 @@ class Transport {
      *  @return mixed a JSON value or null if error
      */
     public function getNewMessages(){
-        $Request = new Endpoint('POST', 'https://%sclient-s.gateway.messenger.live.com/v1/users/ME/endpoints/SELF/subscriptions/0/poll');
+        $Request = new Endpoint('POST', $this->endpointSubscriptionsUrl.'/poll');
         $Request->needRegToken();
-        $Response = $this->requestJSON($Request, [
-            'format' => [$this->cloud ? $this->cloud : '']
-        ]);
-        return isset($Response->eventMessages) ? $Response->eventMessages : null;
+        $Response = $this->request($Request, [
+				'curl' => [CURLOPT_TIMEOUT => 5, CURLOPT_ENCODING => 'identity'],
+				'debug' => false,
+				'form_params' => ['endpoint' => $this->endpointId],
+				'headers' => [
+					'Content-Type' => 'application/x-www-form-urlencoded', 
+					'Accept' => 'application/json, text/javascript',
+					'Expires' => 0,
+					'Content-Length' => 0
+				],
+				'form_params' => []
+			]);
+		if(204==$Response->getStatusCode()) {
+			return null;
+		} else if(404 == $Response->getStatusCode()) {
+			$this->disableMessaging();
+			$this->enableMessaging();
+			return null;
+		} else {
+			$Response = json_decode($Response->getBody());
+			return isset($Response->eventMessages) ? $Response->eventMessages : null;
+		}
     }
 
 	/**

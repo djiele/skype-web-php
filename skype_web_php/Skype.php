@@ -91,7 +91,14 @@ class Skype
      * @brief string path to sessions directory
      */
     private $datapath;
-	
+	/**
+     * @brief array ISO ALPHA-2 countries code
+     */
+	private $isoAlpha2 = ['AF', 'AX', 'AL', 'DZ', 'AS', 'AD', 'AO', 'AI', 'AQ', 'AG', 'AR', 'AM', 'AW', 'AU', 'AT', 'AZ', 'BS', 'BH', 'BD', 'BB', 'BY', 'BE', 'BZ', 'BJ', 'BM', 'BT', 'BO', 'BA', 'BW', 'BV', 'BR', 'VG', 'IO', 'BN', 'BG', 'BF', 'BI', 'KH', 'CM', 'CA', 'CV', 'KY', 'CF', 'TD', 'CL', 'CN', 'HK', 'MO', 'CX', 'CC', 'CO', 'KM', 'CG', 'CD', 'CK', 'CR', 'CI', 'HR', 'CU', 'CY', 'CZ', 'DK', 'DJ', 'DM', 'DO', 'EC', 'EG', 'SV', 'GQ', 'ER', 'EE', 'ET', 'FK', 'FO', 'FJ', 'FI', 'FR', 'GF', 'PF', 'TF', 'GA', 'GM', 'GE', 'DE', 'GH', 'GI', 'GR', 'GL', 'GD', 'GP', 'GU', 'GT', 'GG', 'GN', 'GW', 'GY', 'HT', 'HM', 'VA', 'HN', 'HU', 'IS', 'IN', 'ID', 'IR', 'IQ', 'IE', 'IM', 'IL', 'IT', 'JM', 'JP', 'JE', 'JO', 'KZ', 'KE', 'KI', 'KP', 'KR', 'KW', 'KG', 'LA', 'LV', 'LB', 'LS', 'LR', 'LY', 'LI', 'LT', 'LU', 'MK', 'MG', 'MW', 'MY', 'MV', 'ML', 'MT', 'MH', 'MQ', 'MR', 'MU', 'YT', 'MX', 'FM', 'MD', 'MC', 'MN', 'ME', 'MS', 'MA', 'MZ', 'MM', 'NA', 'NR', 'NP', 'NL', 'AN', 'NC', 'NZ', 'NI', 'NE', 'NG', 'NU', 'NF', 'MP', 'NO', 'OM', 'PK', 'PW', 'PS', 'PA', 'PG', 'PY', 'PE', 'PH', 'PN', 'PL', 'PT', 'PR', 'QA', 'RE', 'RO', 'RU', 'RW', 'BL', 'SH', 'KN', 'LC', 'MF', 'PM', 'VC', 'WS', 'SM', 'ST', 'SA', 'SN', 'RS', 'SC', 'SL', 'SG', 'SK', 'SI', 'SB', 'SO', 'ZA', 'GS', 'SS', 'ES', 'LK', 'SD', 'SR', 'SJ', 'SZ', 'SE', 'CH', 'SY', 'TW', 'TJ', 'TZ', 'TH', 'TL', 'TG', 'TK', 'TO', 'TT', 'TN', 'TR', 'TM', 'TC', 'TV', 'UG', 'UA', 'AE', 'GB', 'US', 'UM', 'UY', 'UZ', 'VU', 'VE', 'VN', 'VI', 'WF', 'EH', 'YE', 'ZM', 'ZW'];
+	/**
+     * @brief array ISO 639-1 languages code
+     */
+	private $iso639_1 = ['AA', 'AB', 'AE', 'AF', 'AK', 'AM', 'AN', 'AR', 'AS', 'AV', 'AY', 'AZ', 'BA', 'BE', 'BG', 'BH', 'BI', 'BM', 'BN', 'BO', 'BR', 'BS', 'CA', 'CE', 'CH', 'CO', 'CR', 'CS', 'CU', 'CV', 'CY', 'DA', 'DE', 'DV', 'DZ', 'EE', 'EL', 'EN', 'EO', 'ES', 'ET', 'EU', 'FA', 'FF', 'FI', 'FJ', 'FO', 'FR', 'FY', 'GA', 'GD', 'GL', 'GN', 'GU', 'GV', 'HA', 'HE', 'HI', 'HO', 'HR', 'HT', 'HU', 'HY', 'HZ', 'IA', 'ID', 'IE', 'IG', 'II', 'IK', 'IO', 'IS', 'IT', 'IU', 'JA', 'JV', 'KA', 'KG', 'KI', 'KJ', 'KK', 'KL', 'KM', 'KN', 'KO', 'KR', 'KS', 'KU', 'KV', 'KW', 'KY', 'LA', 'LB', 'LG', 'LI', 'LN', 'LO', 'LT', 'LU', 'LV', 'MG', 'MH', 'MI', 'MK', 'ML', 'MN', 'MO', 'MR', 'MS', 'MT', 'MY', 'NA', 'NB', 'ND', 'NE', 'NG', 'NL', 'NN', 'NO', 'NR', 'NV', 'NY', 'OC', 'OJ', 'OM', 'OR', 'OS', 'PA', 'PI', 'PL', 'PS', 'PT', 'QU', 'RC', 'RM', 'RN', 'RO', 'RU', 'RW', 'SA', 'SC', 'SD', 'SE', 'SG', 'SH', 'SI', 'SK', 'SL', 'SM', 'SN', 'SO', 'SQ', 'SR', 'SS', 'ST', 'SU', 'SV', 'SW', 'TA', 'TE', 'TG', 'TH', 'TI', 'TK', 'TL', 'TN', 'TO', 'TR', 'TS', 'TT', 'TW', 'TY', 'UG', 'UK', 'UR', 'UZ', 'VE', 'VI', 'VO', 'WA', 'WO', 'XH', 'YI', 'YO', 'ZA', 'ZH', 'ZU'];
     /**
      *  @brief constructor
      *  
@@ -127,7 +134,7 @@ class Skype
 			return false;
 		}
     }
-
+	
 	/**
 	 *  @brief get registration token and mount endpoints
 	 *  
@@ -272,8 +279,42 @@ class Skype
 		];
 		foreach($data as $k=>$v) {
 			if(!in_array($k, $possibleKeys)) {
-				echo 'dropped invalid property [', $k, ']', PHP_EOL;
+				echo 'dropped invalid property [', $k, '] property name must be lowercased', PHP_EOL;
 				unset($data[$k]);
+			}
+		}
+		if(array_key_exists('birthday', $data) && !empty($data['birthday'])) {
+			if(!preg_match('/^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[1-2][0-9]|3[0-1])$/', $data['birthday'])) {
+				echo 'dropped invalid property [birthday] date must be in the form of YYYY-MM-DD', PHP_EOL;
+				unset($data['birthday']);
+			}
+		}
+		if(array_key_exists('country', $data) && !empty($data['country'])) {
+			$data['country'] = strtoupper($data['country']);
+			if(!in_array($data['country'], $this->isoAlpha2)) {
+				echo 'dropped invalid property [country] country code not found (two letters code)', PHP_EOL;
+				unset($data['country']);
+			}
+		}
+		if(array_key_exists('gender', $data) && !empty($data['gender'])) {
+			if(!in_array($data['gender'], [1,2])){
+				echo 'dropped invalid property [gender] gender must be 1 for male and 2 for female', PHP_EOL;
+				unset($data['gender']);
+			}
+		}
+		if(array_key_exists('language', $data) && !empty($data['language'])) {
+			$data['language'] = strtoupper($data['language']);
+			if(!in_array($data['language'], $this->iso639_1)) {
+				echo 'dropped invalid property [language] language code not found (two letters code)', PHP_EOL;
+				unset($data['language']);
+			}
+		}
+		if(array_key_exists('homepage', $data) && !empty($data['homepage'])) {
+			$check = file_get_contents($data['homepage'], false, stream_context_create(['http'=>['method'=>'GET']]));
+			$tokens = explode(' ', $http_response_header[0]);
+			if(200 != $tokens[1]) {
+				echo 'dropped invalid property [homepage] check returned error code ', $tokens[1], PHP_EOL;
+				unset($data['homepage']);
 			}
 		}
 		if(0 == count($data)) {
@@ -282,6 +323,13 @@ class Skype
 			if(($Result = $this->transport->updateProfile($data))) {
 				if(true===$refresh){
 					$this->profile = $this->transport->loadFullProfile();
+				} else {
+					foreach($this->profile as $k=>$v) {
+						$kk = strtolower($k);
+						if(array_key_exists($kk, $data)) {
+							$this->profile->{$k} = $data[$kk];
+						}
+					}
 				}
 			}
 		}
@@ -484,6 +532,15 @@ class Skype
 		return $this->transport->pingGateway();
 	}
 
+	/**
+	 *  @brief set TTL for current endpoint
+	 *  
+	 *  @return boolean
+	 */
+	public function endpointTtl($ttl=12) {
+		return $this->transport->endpointTtl($ttl);
+	}
+	
 	/**
 	 *  @brief messaging details of current user
 	 *  
