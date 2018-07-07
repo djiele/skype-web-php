@@ -400,7 +400,17 @@ class Skype
 			echo $action, ' not found in possible values [accept, decline]', PHP_EOL;
 			return false;
 		}
-		return $this->transport->acceptOrDeclineInvite($mri, $action='decline');
+		$mri = $this->usernameToMri($mri);
+		if($this->transport->acceptOrDeclineInvite($mri, $action='decline')) {
+			if('accept' == $action) {
+				$this->contacts = $this->transport->loadContacts();
+				$this->messagingAddContact($mri);
+				$this->conversations = $this->loadConversations();
+			}
+			return true;
+		} else {
+			return false;
+		}
 	}
 	
 	/**
@@ -569,6 +579,17 @@ class Skype
 		return is_object($tmp) && isset($tmp->status) ? $tmp->status : 'undefined';
 	}
 	
+	/**
+	 *  @brief add a contact to the conversation list
+	 *  
+	 *  @param string $mri MRI of target user
+	 *  @return boolean
+	 */
+	public function messagingAddContact($mri) {
+		$mri = $this->usernameToMri($mri);
+		return $this->transport->messagingAddContact($mri);
+	}
+
 	/**
 	 *  @brief undocumented method
 	 *  

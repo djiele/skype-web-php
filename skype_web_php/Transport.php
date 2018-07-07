@@ -947,7 +947,7 @@ class Transport {
 	}
 
 	/**
-	 *  @brief set agent attribute to currentenpoint (also used to probe endpoint)
+	 *  @brief set the supportsMessageProperties flag to true
 	 *  
 	 *  @return boolean
 	 */
@@ -1015,6 +1015,23 @@ class Transport {
 		$Response = $this->request($Request, ['debug' => false, 'format' => [$this->cloud ? $this->cloud : '']]);
 		$ret = json_decode($Response->getBody());
 		return 200 == $Response->getStatusCode() && is_object($ret) && isset($ret->type) ? $ret : null;
+	}
+	
+	/**
+	 *  @brief add a contact to the conversation list
+	 *  
+	 *  @param string $mri MRI of target user
+	 *  @return boolean
+	 */
+	public function messagingAddContact($mri) {
+		$Request = new Endpoint('PUT', 'https://%sclient-s.gateway.messenger.live.com/v1/users/ME/contacts/%s');
+		$Request->needRegToken();
+		$Response = $this->request($Request, [
+									'debug' => false, 
+									'format' => [$this->cloud ? $this->cloud : '', $mri],
+									'headers' => ['Content-Length' => 0]
+								]);
+		return 200 == $Response->getStatusCode();
 	}
 	
 	/**
