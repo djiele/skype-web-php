@@ -233,9 +233,9 @@ class Skype
 		$match = [];
 		if(false === strpos($username, ':') ) {
 			if(false !== ($pos=strpos($username, '@'))) {
-				$lookUp = substr($username, $pos+1);
+				$lookUp = substr($username, 0, $pos+1);
 			}
-			$lookUp = ':'.$username;
+			$lookUp = '8:live:'.$username;
 		} else {
 			$lookUp = $username;
 		}
@@ -258,7 +258,10 @@ class Skype
 		if(1 == $cnt) {
 			return $match[0];
 		} else {
-			echo "No match or ambiguous username [$username]. Returned as is.", PHP_EOL;
+			echo "No match for username [$username]", PHP_EOL;
+			if(false === strpos($username, ':') ) {
+				$username = '8:live:'.$username;
+			}
 			return $username;
 		}
 	}

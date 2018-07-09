@@ -220,7 +220,7 @@ class Transport {
 		}
         static::init();
 		
-		$this->client = new CurlRequestWrapper($this->dataPath.DIRECTORY_SEPARATOR.'curl'.DIRECTORY_SEPARATOR);
+		$this->client = new CurlRequestWrapper($this->loginName, $this->dataPath.DIRECTORY_SEPARATOR.'curl'.DIRECTORY_SEPARATOR);
 		$this->client->registerCallback(function ($Response) {
 					$code = $Response->getStatusCode();
 					if (($code >= 301 && $code <= 303) || $code == 307 || $code == 308) {

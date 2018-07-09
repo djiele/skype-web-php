@@ -44,7 +44,11 @@ class CurlRequestWrapper {
      */
 	protected $sessOptions;
 	/**
-     * @brief PathToCookieJar
+     * @brief UserLogin
+     */
+	protected $userLogin;
+	/**
+     * @brief pathToCookieJar
      */
 	protected $pathToCookieJar;
 	/**
@@ -55,19 +59,27 @@ class CurlRequestWrapper {
      * @brief BaseOptions []
      */
 	protected $baseOptions;
-
+	/**
+     * @brief Cookies []
+     */
+	protected $cookies;
+	/**
+     * @brief Current URL
+     */
+	protected $currentUrl;
+	
 	/**
 	 *  @brief constructor
 	 *  
-	 *  @param string $pathtoCookieJar directory path where to write cookie file
+	 *  @param string $pathToCookieJar directory path where to write cookie file
 	 *  @return void
 	 */
-	public function __construct($pathtoCookieJar=null) {
+	public function __construct($userLogin, $pathToCookieJar=null) {
 		$this->baseOptions = [
 			CURLOPT_ENCODING => '',
 			CURLOPT_TIMEOUT => 10,
 			CURLOPT_USERAGENT => 'Mozilla/5.0 (Windows NT 10.0; ...) Gecko/20100101 Firefox/60.0',
-			CURLOPT_COOKIESESSION => false,
+			CURLOPT_COOKIESESSION => 0,
 			CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_NONE,
 			CURLOPT_SSLVERSION => CURL_SSLVERSION_DEFAULT,
 			CURLOPT_SSL_VERIFYHOST => 2,
@@ -79,15 +91,48 @@ class CurlRequestWrapper {
 			CURLOPT_MAXREDIRS => 10,
 			CURLOPT_CONNECTTIMEOUT => 5,
 		];
-		if(null !== $pathtoCookieJar) {
-			$this->pathToCookieJar = rtrim($pathtoCookieJar, DIRECTORY_SEPARATOR);
-			$this->baseOptions[CURLOPT_COOKIEJAR] = $this->pathToCookieJar.'/cookie.txt';
-			$this->baseOptions[CURLOPT_COOKIEFILE] = $this->pathToCookieJar.'/cookie.txt';
+		if(null !== $pathToCookieJar) {
+			$this->userLogin = $userLogin;
+			if('.php' == substr($pathToCookieJar, -4)) {
+				$this->pathToCookieJar = $pathToCookieJar;
+				if(is_file($this->pathToCookieJar)) {
+					require $this->pathToCookieJar;
+				} else {
+					$cookies = [];
+					file_put_contents($this->pathToCookieJar, '<?php $cookies = '.var_export($cookies, true).';');
+				}
+				$this->cookies = $cookies;
+			} else {
+				$this->pathToCookieJar = rtrim($pathToCookieJar, DIRECTORY_SEPARATOR);
+				$this->baseOptions[CURLOPT_COOKIEJAR] = $this->pathToCookieJar.'/'.$userLogin.'-cookie.txt';
+				$this->baseOptions[CURLOPT_COOKIEFILE] = $this->pathToCookieJar.'/'.$userLogin.'-cookie.txt';
+			}
 		}
 		$this->callbacks = [];
 		$this->sessOptions = [];
 	}
 	
+	/**
+	 *  @brief destructor
+	 *  
+	 *  @return void
+	 */
+	public function __destruct() {
+		$ts = time();
+		if(null !== $this->pathToCookieJar && '.php' == substr($this->pathToCookieJar, -4)){
+			foreach($this->cookies as $kDomain => $domain) {
+				foreach($domain as $kPath => $path) {
+					foreach($path as $kCookie => $cookie) {
+						if($cookie['expires'] == 0 || $ts>$cookie['expires']) {
+							unset($this->cookies[$kDomain][$kPath][$kCookie]);
+						}
+					}
+				}
+			}
+			file_put_contents($this->pathToCookieJar, '<?php $cookies = '.var_export($this->cookies, true).';');
+		}
+	}
+
 	/**
 	 *  @brief set boot options for a request
 	 *  
@@ -97,6 +142,121 @@ class CurlRequestWrapper {
 		foreach($this->baseOptions as $k => $v) {
 			curl_setopt($this->ch, $k, $v);
 		}
+	}
+
+	/**
+	 *  @brief update the cookies array
+	 *  
+	 *  @param CurlResponseWrapper $response a response object from which to get cookies
+	 *  @return void
+	 */
+	protected function updateCookies($response) {
+		$ts = time();
+		$tmp = $response->getHeader('Set-Cookie');
+		if(is_array($tmp) && 0<count($tmp)) {
+			foreach($tmp as $v) {
+				$v = $this->parseCookie($v);
+				foreach($v as $vv) {
+					if('.' != substr($vv['domain'], 0, 1)) {
+						$vv['domain'] = '.'.$vv['domain'];
+					}
+					if(!array_key_exists($vv['domain'], $this->cookies)) {
+						$this->cookies[$vv['domain']] = [];
+					}
+					if(!array_key_exists($vv['path'], $this->cookies[$vv['domain']])) {
+						$this->cookies[$vv['domain']][$vv['path']] = array();
+					}
+					if(array_key_exists($vv['name'], $this->cookies[$vv['domain']][$vv['path']])) {
+						if(0<$vv['expires'] && $vv['expires']<$ts) {
+							unset($this->cookies[$vv['domain']][$vv['path']][$vv['name']]);
+						} else {
+							$this->cookies[$vv['domain']][$vv['path']][$vv['name']] = ['value' => $vv['value'], 'expires' => $vv['expires']];
+						}
+					} else {
+						if(0==$vv['expires'] || $vv['expires']>$ts) {
+							$this->cookies[$vv['domain']][$vv['path']][$vv['name']] = ['value' => $vv['value'], 'expires' => $vv['expires']];
+						}
+					}
+				}
+			}
+		}
+		print_r($this->cookies);
+	}
+
+	/**
+	 *  @brief parse a HTTP cookie
+	 *  
+	 *  @param string $cookie the raw cookie contents
+	 *  @return array
+	 */
+	protected function parseCookie($cookieHeader) {
+		$parsedCookies = [];
+		$cookieParts = ['name' => null, 'value' => null, 'expires' => 0, 'path' => dirname(parse_url($this->currentUrl, PHP_URL_PATH)), 'domain' => parse_url($this->currentUrl, PHP_URL_HOST)];
+		$parts = explode(';', $cookieHeader);
+		foreach($parts as $ndx=>$part) {
+			if(false === strpos($part, '=')) {
+				$parts[$ndx] = $part.'=';
+			}
+			$parts[$ndx] = trim($parts[$ndx]);
+			if(0===strpos($parts[$ndx], 'expires=')) {
+				$date = substr($parts[$ndx], 0, strpos($parts[$ndx], ' GMT')+4);
+				$date = substr($date, strpos($date, '=')+1);
+				$parts[$ndx] = str_replace($date, strtotime($date), $parts[$ndx]);
+			}
+		}
+		$cookieHeader = join(';', $parts);
+		$cookies = explode(',', $cookieHeader);
+		foreach($cookies as $ndx=>$cookie) {
+			$cookieFillParts = $cookieParts;
+			$cookie = trim($cookie);
+			$cookieTokens = explode(';', $cookie);
+			$token = array_shift($cookieTokens);
+			$cookieFillParts['name'] = substr($token, 0, strpos($token,'='));
+			$cookieFillParts['value'] = substr($token, strpos($token,'=')+1);
+			while(null !== ($token=array_shift($cookieTokens))) {
+				$k = substr($token, 0, strpos($token,'='));
+				$v = substr($token, strpos($token,'=')+1);
+				$cookieFillParts[$k] = $v;
+			}
+			$parsedCookies[] = $cookieFillParts;
+		}
+		return $parsedCookies;
+	}
+	
+	/**
+	 *  @brief prepare the Cookie header 
+	 *  
+	 *  @param string $url target URL
+	 *  @return void
+	 */
+	public function getUrlCookies($url) {
+		$ts = time();
+		$cookies = [];
+		$host = parse_url($url, PHP_URL_HOST);
+		if('.' != substr($host, 0, 1)) {
+			$host = '.'.$host;
+		}
+		$path = parse_url($url, PHP_URL_PATH);
+		foreach($this->cookies as $kDomain => $vDomain) {
+			$kDomainLen = strlen($kDomain);
+			if($kDomain != substr($host, -$kDomainLen)) {
+				echo 'no match for ', $host, PHP_EOL;
+				continue;
+			}
+			foreach($vDomain as $kPath => $vPath) {
+				$kPathLen = strlen($kPath);
+				if($kPath != substr($path, 0, $kPathLen)) {
+					echo 'no match for ', $path, PHP_EOL;
+					continue;
+				}
+				foreach($vPath as $kCookie => $cookie) {
+					if(0 == $cookie['expires'] || $cookie['expires'] > $ts) {
+						$cookies[] = $kCookie.': '.$cookie['value'];
+					}
+				}
+			}
+		}
+		return $cookies;
 	}
 	
 	/**
@@ -159,6 +319,13 @@ class CurlRequestWrapper {
 		} else {
 			curl_setopt($this->ch, CURLOPT_URL, $url);
 		}
+		$this->currentUrl = $url;
+		
+		$cookies = $this->getUrlCookies($url);
+		if(0<count($cookies)) {
+			$params['headers']['Cookie'] = $cookies;
+		}
+		
 		foreach($params as $k => $v) {
 			if('curl' == $k) {
 				foreach($v as $kv => $vv) {
@@ -199,7 +366,13 @@ class CurlRequestWrapper {
 		if(0<count($params['headers'])) {
 			$requestHeaders = [];
 			foreach($params['headers'] as $k=>$v) {
-				$requestHeaders[] = $k.': '.$v;
+				if(is_array($v)) {
+					foreach($v as $vv) {
+						$requestHeaders[] = $k.': '.$vv;
+					}
+				} else {
+					$requestHeaders[] = $k.': '.$v;
+				}
 				unset($params['headers'][$k]);
 			}
 			if(in_array($method, array('POST', 'PUT'))) {
@@ -210,11 +383,12 @@ class CurlRequestWrapper {
 		
 		
 		$response = new CurlResponseWrapper($this->ch);
+		$this->currentUrl = $response->getInfo('url');
 		foreach($this->callbacks as $cb) {
 			$response = call_user_func_array($cb, [$response]);
 		}
+		$this->updateCookies($response);
 		@curl_close($this->ch);
-		//echo $method, ' ', $url, PHP_EOL;
 		return $response;
 	}
 }
