@@ -67,7 +67,11 @@ class CurlRequestWrapper {
      * @brief Current URL
      */
 	protected $currentUrl;
-	
+	/**
+     * @brief Use custom cookie handler
+     */
+	protected $useCustomCookies;
+
 	/**
 	 *  @brief constructor
 	 *  
@@ -94,6 +98,7 @@ class CurlRequestWrapper {
 		if(null !== $pathToCookieJar) {
 			$this->userLogin = $userLogin;
 			if('.php' == substr($pathToCookieJar, -4)) {
+				$this->useCustomCookies = true;
 				$this->pathToCookieJar = $pathToCookieJar;
 				if(is_file($this->pathToCookieJar)) {
 					require $this->pathToCookieJar;
@@ -103,6 +108,7 @@ class CurlRequestWrapper {
 				}
 				$this->cookies = $cookies;
 			} else {
+				$this->useCustomCookies = false;
 				$this->pathToCookieJar = rtrim($pathToCookieJar, DIRECTORY_SEPARATOR);
 				$this->baseOptions[CURLOPT_COOKIEJAR] = $this->pathToCookieJar.'/'.$userLogin.'-cookie.txt';
 				$this->baseOptions[CURLOPT_COOKIEFILE] = $this->pathToCookieJar.'/'.$userLogin.'-cookie.txt';
@@ -180,7 +186,6 @@ class CurlRequestWrapper {
 				}
 			}
 		}
-		print_r($this->cookies);
 	}
 
 	/**
@@ -321,9 +326,11 @@ class CurlRequestWrapper {
 		}
 		$this->currentUrl = $url;
 		
-		$cookies = $this->getUrlCookies($url);
-		if(0<count($cookies)) {
-			$params['headers']['Cookie'] = $cookies;
+		if($this->useCustomCookies) {
+			$cookies = $this->getUrlCookies($url);
+			if(0<count($cookies)) {
+				$params['headers']['Cookie'] = $cookies;
+			}
 		}
 		
 		foreach($params as $k => $v) {
@@ -387,7 +394,9 @@ class CurlRequestWrapper {
 		foreach($this->callbacks as $cb) {
 			$response = call_user_func_array($cb, [$response]);
 		}
-		$this->updateCookies($response);
+		if($this->useCustomCookies) {
+			$this->updateCookies($response);
+		}
 		@curl_close($this->ch);
 		return $response;
 	}
