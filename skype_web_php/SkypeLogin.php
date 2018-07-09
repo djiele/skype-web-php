@@ -89,21 +89,11 @@ class SkypeLogin {
 	static public function fetchSkypeToken($login, $passwd, $dataPath) {
 		$skypeToken = null;
 		$skypeTokenExpires = null;
-		$client = new CurlRequestWrapper($dataPath.DIRECTORY_SEPARATOR.'curl'.DIRECTORY_SEPARATOR);
-		$loginCookies = [];
+		$client = new CurlRequestWrapper($login, $dataPath.DIRECTORY_SEPARATOR.'curl'.DIRECTORY_SEPARATOR.$login.'-cookies.php');
 
-		$tmp = $client->send('GET', self::$loginUrl, ['debug' => true]);
+		$tmp = $client->send('GET', self::$loginUrl, ['debug' => false]);
 		$response = $tmp->getBody();
 
-		$cookies = $tmp->getHeader('Set-Cookie');
-		if(is_array($cookies) && 0<count($cookies)) {
-			foreach($cookies as $cookie) {
-				$tokens = explode(';', $cookie);
-				$cookieName = substr($tokens[0], 0, strpos($tokens[0], '='));
-				$cookieValue = ltrim(substr($tokens[0], strpos($tokens[0], '=')+1));
-				$loginCookies[$cookieName] = $cookieValue;
-			}
-		}
 		$srvData = self::parseServerData($response);
 		if(is_object($srvData)) {
 			$urlPost = $srvData->urlPost;
@@ -138,24 +128,9 @@ class SkypeLogin {
 			$doc = null;
 		}
 
-		$cookieHeader = '';
-		foreach($loginCookies as $kCookie=>$vCookie) {
-			$cookieHeader .= "$kCookie=$vCookie; ";
-		}
-		$cookieHeader = rtrim($cookieHeader, '; ');
-		$tmp = $client->send('POST', $urlPost, ['curl' => [CURLOPT_COOKIE => $cookieHeader], 'debug' => true, 'form_params' => $postData]);
+		$tmp = $client->send('POST', $urlPost, ['debug' => false, 'form_params' => $postData]);
 		$response2 = $tmp->getBody();
-		
-		$cookies = $tmp->getHeader('Set-Cookie');
-		if(is_array($cookies) && 0<count($cookies)) {
-			foreach($cookies as $cookie) {
-				$tokens = explode(';', $cookie);
-				$cookieName = substr($tokens[0], 0, strpos($tokens[0], '='));
-				$cookieValue = ltrim(substr($tokens[0], strpos($tokens[0], '=')+1));
-				$loginCookies[$cookieName] = $cookieValue;
-			}
-		}
-		
+
 		$doc =  new \DOMDocument();
 		@$doc->loadHTML($response2, LIBXML_NOWARNING | LIBXML_NOERROR);
 		$forms = $doc->getElementsByTagName('form');
@@ -176,14 +151,8 @@ class SkypeLogin {
 			}
 		}
 		$doc = null;
-
-		$cookieHeader = '';
-		foreach($loginCookies as $kCookie=>$vCookie) {
-			$cookieHeader .= "$kCookie=$vCookie; ";
-		}
-		$cookieHeader = rtrim($cookieHeader, '; ');
 		
-		$tmp = $client->send('POST', $urlPost, ['curl' => [CURLOPT_COOKIE => $cookieHeader], 'form_params' => $postData]);
+		$tmp = $client->send('POST', $urlPost, ['form_params' => $postData]);
 		$response3 = $tmp->getBody();
 		
 		$doc =  new \DOMDocument();
@@ -230,6 +199,7 @@ class SkypeLogin {
 				}
 			}
 		}
+		return null;
 		return empty($skypeToken) ? null : array('skypetoken' => $skypeToken, 'expires_in' => $skypeTokenExpires);
 	}
 }

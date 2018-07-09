@@ -387,7 +387,13 @@ class CurlRequestWrapper {
 			}
 			curl_setopt($this->ch, CURLOPT_HTTPHEADER, $requestHeaders);
 		}
-		
+
+		if($this->useCustomCookies) {
+			$cookies = $this->getUrlCookies($url);
+			if(0<count($cookies)) {
+				curl_setopt($this->ch, CURLOPT_COOKIE, join('; ', $cookies));
+			}
+		}
 		
 		$response = new CurlResponseWrapper($this->ch);
 		$this->currentUrl = $response->getInfo('url');
