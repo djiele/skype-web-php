@@ -176,11 +176,11 @@ class CurlRequestWrapper {
 						if(0<$vv['expires'] && $vv['expires']<$ts) {
 							unset($this->cookies[$vv['domain']][$vv['path']][$vv['name']]);
 						} else {
-							$this->cookies[$vv['domain']][$vv['path']][$vv['name']] = ['value' => $vv['value'], 'expires' => $vv['expires']];
+							$this->cookies[$vv['domain']][$vv['path']][$vv['name']] = ['value' => $vv['value'], 'expires' => (int)$vv['expires']];
 						}
 					} else {
 						if(0==$vv['expires'] || $vv['expires']>$ts) {
-							$this->cookies[$vv['domain']][$vv['path']][$vv['name']] = ['value' => $vv['value'], 'expires' => $vv['expires']];
+							$this->cookies[$vv['domain']][$vv['path']][$vv['name']] = ['value' => $vv['value'], 'expires' => (int)$vv['expires']];
 						}
 					}
 				}
@@ -245,18 +245,16 @@ class CurlRequestWrapper {
 		foreach($this->cookies as $kDomain => $vDomain) {
 			$kDomainLen = strlen($kDomain);
 			if($kDomain != substr($host, -$kDomainLen)) {
-				echo 'no match for ', $host, PHP_EOL;
 				continue;
 			}
 			foreach($vDomain as $kPath => $vPath) {
 				$kPathLen = strlen($kPath);
 				if($kPath != substr($path, 0, $kPathLen)) {
-					echo 'no match for ', $path, PHP_EOL;
 					continue;
 				}
 				foreach($vPath as $kCookie => $cookie) {
 					if(0 == $cookie['expires'] || $cookie['expires'] > $ts) {
-						$cookies[] = $kCookie.': '.$cookie['value'];
+						$cookies[] = $kCookie.'='.$cookie['value'];
 					}
 				}
 			}
@@ -325,13 +323,6 @@ class CurlRequestWrapper {
 			curl_setopt($this->ch, CURLOPT_URL, $url);
 		}
 		$this->currentUrl = $url;
-		
-		if($this->useCustomCookies) {
-			$cookies = $this->getUrlCookies($url);
-			if(0<count($cookies)) {
-				$params['headers']['Cookie'] = $cookies;
-			}
-		}
 		
 		foreach($params as $k => $v) {
 			if('curl' == $k) {
