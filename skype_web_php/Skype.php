@@ -403,12 +403,11 @@ class Skype
 			echo $action, ' not found in possible values [accept, decline]', PHP_EOL;
 			return false;
 		}
-		$mri = $this->usernameToMri($mri);
-		if($this->transport->acceptOrDeclineInvite($mri, $action='decline')) {
+		if($this->transport->acceptOrDeclineInvite($mri, $action)) {
 			if('accept' == $action) {
 				$this->contacts = $this->transport->loadContacts();
 				$this->messagingAddContact($mri);
-				$this->conversations = $this->loadConversations();
+				$this->conversations = $this->transport->loadConversations();
 			}
 			return true;
 		} else {
@@ -618,7 +617,8 @@ class Skype
 				return $conversation;
 			}
         }
-		return null;
+		$ret = null;
+		return $ret;
 	}
 
 	/**
@@ -773,6 +773,17 @@ class Skype
             sleep(1);
         }
     }
+	
+	/**
+	 *  @brief set conversation's consumption horizon 
+	 *  
+	 *  @param int $conversationId ID of the conversation
+	 *  @param int $messageId ID of message to marked as seen
+	 *  @return boolean or false on error
+	 */
+	public function setConsumptionHorizon($conversationId, $messageId) {
+		return $this->transport->setConsumptionHorizon($conversationId, $messageId);
+	}
 
 	/**
 	 *  @brief inititate the thread list from the conversation list
@@ -806,7 +817,8 @@ class Skype
 				return $thread;
 			}
         }
-		return null;
+		$ret = null;
+		return $ret;
 	}
 
 	/**
@@ -835,22 +847,22 @@ class Skype
 	 */
 	public function createThread($topic, array $members, $joiningenabled=false, $historydisclosed=false) {
 		$selfFound = false;
+		$myMri = '8:'.$this->username;
 		foreach($members as $ndx => $member) {
-			$member['id'] = $this->usernameToMri($member['id']);
-			if(!$member['id']) {
-				unset($members[$ndx]);
-				continue;
+			if(!is_array($member)) {
+				$members[$ndx] = ['id' => $member, 'role' => 'User'];
 			}
-			if($this->profile->mri == $member['id']) {
+			$members[$ndx]['id'] = $this->usernameToMri($members[$ndx]['id']);
+			if($myMri == $members[$ndx]['id']) {
 				$selfFound = true;
 				$members[$ndx]['role'] = 'Admin';
 			}
 		}
 		if(false == $selfFound) {
-			$members[] = ['id' => $this->profile->mri, 'role' => 'Admin'];
+			$members[] = ['id' => $myMri, 'role' => 'Admin'];
 		}
 		$members = array_values($members);
-		if(1 == count($members) && $this->profile->mri == $members[0]['id']) {
+		if(1 == count($members) && $myMri == $members[0]['id']) {
 			return false;
 		}
 		$threadUrl = $this->transport->initiateThread($members);
