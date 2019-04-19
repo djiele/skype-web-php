@@ -72,17 +72,16 @@ $skype->deleteMessage($contact_id', $message_id);
 $fileInfos = $skype->sendFile([$contact_id=>['read', 'write']], /path/to/file);
 $imgInfos=$skype->sendImage([$contact_id=>['read', 'write']], /path/to/image))
 $message_id = $skype->sendContact($contact_id,  $contact_id_to_be_sent);
-
-$skype->disableMessaging();
 ```
 ##### Retrieve new messages
 ```
-$messages = $skype->getNewMessages()
+$messages = $skype->getNewMessages();
 ```
-#### Close the connection
+#### Free resources, close the connection
 
 ```
-$skype->logout()
+$skype->disableMessaging();
+$skype->logout();
 ```
 
 #### Others
@@ -92,4 +91,3 @@ skype-web can also
 - send, accept or decline invitations
 - manage groupchat
 - search for contact
-
