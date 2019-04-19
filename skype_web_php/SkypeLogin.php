@@ -44,11 +44,12 @@ class SkypeLogin {
 	 *  @return stdClass
 	 */
 	static public function parseServerData($string) {
-		$srvDataStart = strpos($string, 'ServerData');
+		$srvDataStart = strpos($string, '<script type="text/javascript">var ServerData');
 		$srvData = substr($string, $srvDataStart);
 		$srvData = substr($srvData, strpos($srvData, '{'));
 		$srvDataEnd = strpos($srvData, ';</script>');
 		$srvData = substr($srvData, 0, $srvDataEnd);
+        file_put_contents('ServerData.json', $srvData);
 		$json = new \Services_JSON();
 		$srvData = $json->decode($srvData);
 		return $srvData;
@@ -93,6 +94,7 @@ class SkypeLogin {
 
 		$tmp = $client->send('GET', self::$loginUrl, ['debug' => false]);
 		$response = $tmp->getBody();
+        //file_put_contents('response-001.html', $response);
 
 		$srvData = self::parseServerData($response);
 		if(is_object($srvData)) {
@@ -100,17 +102,16 @@ class SkypeLogin {
 			$ppft = $srvData->sFTTag;
 			$ppft = substr($ppft, strpos($ppft,'value="')+7);
 			$ppft = substr($ppft, 0,strpos($ppft, '"'));
-			if(isset($srvData->bi) && !empty($srvData->bi)) {
-				$ppftKey = $srvData->bi;
-			} else {
-				$ppftKey = 'PPFT';
-			}
+            $ppftKey = $srvData->sFTTag;
+            $ppftKey = substr($ppftKey, strpos($ppftKey,'name="')+6);
+            $ppftKey = substr($ppftKey, 0, strpos($ppftKey, '"'));
 			$postData = array('login' => $login, 'passwd' => $passwd, $ppftKey => $ppft);
 			if(isset($srvData->bF) && !empty($srvData->bF)) {
 				$postData['PPSX'] = $srvData->bF;
 			} else if(isset($srvData->bl) && !empty($srvData->bl)) {
 				$postData['PPSX'] = $srvData->bl;
 			}
+            file_put_contents('PPFT.php', '<?php $PPFT = '.print_r($postData, true));
 		} else {
 			$doc =  new \DOMDocument();
 			@$doc->loadHTML($response, LIBXML_NOWARNING | LIBXML_NOERROR);
@@ -130,6 +131,7 @@ class SkypeLogin {
 
 		$tmp = $client->send('POST', $urlPost, ['debug' => false, 'form_params' => $postData]);
 		$response2 = $tmp->getBody();
+         //file_put_contents('response-002.html', $response2);
 
 		$doc =  new \DOMDocument();
 		@$doc->loadHTML($response2, LIBXML_NOWARNING | LIBXML_NOERROR);
@@ -154,6 +156,7 @@ class SkypeLogin {
 		
 		$tmp = $client->send('POST', $urlPost, ['debug' => false, 'form_params' => $postData]);
 		$response3 = $tmp->getBody();
+         //file_put_contents('response-003.html', $response3);
 		
 		$doc =  new \DOMDocument();
 		@$doc->loadHTML($response3, LIBXML_NOWARNING | LIBXML_NOERROR);
@@ -179,6 +182,7 @@ class SkypeLogin {
 		if(!$skypeToken) {
 			$tmp = $client->send('POST', $urlPost, ['debug' => false, 'form_params' => $postData]);
 			$response4 = $tmp->getBody();
+             //file_put_contents('response-004.html', $response4);
 			
 			$doc =  new \DOMDocument();
 			@$doc->loadHTML($response4, LIBXML_NOWARNING | LIBXML_NOERROR);
@@ -203,6 +207,7 @@ class SkypeLogin {
 		if($skypeToken) {
 			$tmp = $client->send('POST', $urlPost, ['debug' => false, 'form_params' => $postData]);
 			$response5 = $tmp->getBody();
+             //file_put_contents('response-005.html', $response5);
 		}
 		return empty($skypeToken) ? null : array('skypetoken' => $skypeToken, 'expires_in' => $skypeTokenExpires);
 	}
