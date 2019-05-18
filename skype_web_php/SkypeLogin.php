@@ -49,7 +49,7 @@ class SkypeLogin {
 		$srvData = substr($srvData, strpos($srvData, '{'));
 		$srvDataEnd = strpos($srvData, ';</script>');
 		$srvData = substr($srvData, 0, $srvDataEnd);
-        file_put_contents('ServerData.json', $srvData);
+        //file_put_contents('ServerData.json', $srvData);
 		$json = new \Services_JSON();
 		$srvData = $json->decode($srvData);
 		return $srvData;
@@ -111,7 +111,7 @@ class SkypeLogin {
 			} else if(isset($srvData->bl) && !empty($srvData->bl)) {
 				$postData['PPSX'] = $srvData->bl;
 			}
-            file_put_contents('PPFT.php', '<?php $PPFT = '.print_r($postData, true));
+            //file_put_contents('PPFT.php', '<?php $PPFT = '.print_r($postData, true));
 		} else {
 			$doc =  new \DOMDocument();
 			@$doc->loadHTML($response, LIBXML_NOWARNING | LIBXML_NOERROR);
